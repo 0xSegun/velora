@@ -22,7 +22,7 @@ class Settings(BaseSettings):
 
     # Application
     APP_NAME: str = "Velora"
-    APP_ENV: str = "development"
+    APP_ENV: str = "production"
     DEBUG: bool = False
     API_V1_PREFIX: str = "/api"
 
@@ -67,7 +67,7 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = ""
 
     # Frontend
-    FRONTEND_URL: str = "http://localhost:3000"
+    FRONTEND_URL: str = "https://velora-dusky-chi.vercel.app"
 
     # Admin seed (change in production)
     ADMIN_EMAIL: str = "admin@inflationplatform.com"
