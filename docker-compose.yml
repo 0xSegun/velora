@@ -1,0 +1,80 @@
+version: '3.9'
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:16-alpine
+    container_name: velora-db
+    environment:
+      POSTGRES_USER: ${DB_USER:-velora}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-velora_secret}
+      POSTGRES_DB: ${DB_NAME:-velora}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-velora}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - velora-network
+
+  # FastAPI Backend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: velora-backend
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${DB_USER:-velora}:${DB_PASSWORD:-velora_secret}@db:5432/${DB_NAME:-velora}
+      SECRET_KEY: ${SECRET_KEY:-your-secret-key-change-in-production}
+      JWT_SECRET: ${JWT_SECRET:-your-jwt-secret-change-in-production}
+      JWT_ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: 30
+      REFRESH_TOKEN_EXPIRE_DAYS: 7
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      FRED_API_KEY: ${FRED_API_KEY:-}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      CORS_ORIGINS: '["http://localhost:3000", "https://velora.vercel.app"]'
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+      - model_data:/app/models
+    networks:
+      - velora-network
+    restart: unless-stopped
+
+  # Next.js Frontend (development)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: velora-frontend
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-your-nextauth-secret}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - velora-network
+
+volumes:
+  postgres_data:
+  model_data:
+
+networks:
+  velora-network:
+    driver: bridge

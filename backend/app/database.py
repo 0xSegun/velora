@@ -1,0 +1,23 @@
+"""
+Backward-compatible database module — delegates to app.database.session.
+"""
+
+from app.database.session import (
+    Base,
+    async_session_factory,
+    check_database_connection,
+    close_db,
+    engine,
+    get_db,
+    init_db,
+)
+
+__all__ = [
+    "Base",
+    "engine",
+    "async_session_factory",
+    "get_db",
+    "init_db",
+    "close_db",
+    "check_database_connection",
+]

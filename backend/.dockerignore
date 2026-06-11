@@ -1,0 +1,29 @@
+# Virtualenv & bytecode
+venv
+.venv
+__pycache__
+*.pyc
+.pytest_cache
+
+# Local PostgreSQL bundle (use docker-compose db service)
+postgres
+
+# Archives
+backup_archive
+dataset_archive
+old_models
+external_storage
+
+# Logs & generated files
+logs
+logs/archive
+generated_pdfs
+uploads
+cache
+
+# Tests & dev scripts (not needed in runtime image)
+scripts/download_postgres.ps1
+
+# Environment
+.env
+.env.*

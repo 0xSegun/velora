@@ -1,0 +1,55 @@
+# Node / frontend build artifacts
+node_modules
+.next
+out
+build
+dist
+coverage
+*.tsbuildinfo
+
+# Python virtualenv & bytecode
+venv
+.venv
+env
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+htmlcov
+.coverage
+
+# Logs & caches
+logs
+*.log
+cache
+temp
+backend/logs
+backend/cache
+
+# Archives & local DB bundles
+backup_archive
+dataset_archive
+datasets_archive
+old_models
+external_storage
+backend/postgres
+generated_reports
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+
+# Git & IDE
+.git
+.gitignore
+.vscode
+.idea
+
+# Dev-only
+terminals
+agent-tools
+mcps
+optimization
+*.md
+!README.md

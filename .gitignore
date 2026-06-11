@@ -1,0 +1,94 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+*.pyo
+.Python
+env/
+venv/
+.venv/
+
+# Environment
+.env
+.env.local
+.env.production
+.env.*.local
+
+# Build outputs
+.next/
+out/
+build/
+dist/
+*.tsbuildinfo
+
+# Database
+*.db
+*.sqlite3
+
+# AI model checkpoints (source under backend/ai/model/ is kept)
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.pkl
+!backend/ai/model/*.py
+
+# Archives & large local bundles (restore via Docker / npm install)
+backup_archive/
+dataset_archive/
+datasets_archive/
+old_models/
+external_storage/
+backend/postgres/
+
+# Generated artifacts
+generated_reports/
+cache/
+temp/
+backend/cache/
+backend/logs/archive/
+backend/logs/*.html
+backend/logs/*.log
+
+# IDE / OS
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-compose.override.yml
+
+# Logs
+*.log
+logs/
+
+# Coverage / test
+coverage/
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Dev session artifacts
+terminals/
+agent-tools/
+optimization/audit_*.json
+optimization/deploy_staging/
+optimization/velora-deploy.zip
+optimization/infinicast-deploy.zip
+optimization/PROJECT_OPTIMIZATION_REPORT.md
+
+# Local env (never ship)
+frontend/.env.local
+backend/.env
+
+# AI assistant dev notes
+frontend/AGENTS.md
+frontend/CLAUDE.md
+
+# Misc
+*.bak
+*.tmp
+mcps/
