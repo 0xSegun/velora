@@ -101,7 +101,9 @@ def reload_model() -> bool:
         from ai.model.transformer import TSTransformer
         from ai.pipeline.preprocess import DataPreprocessor
 
-        checkpoint = torch.load(_CHECKPOINT_PATH, map_location="cpu", weights_only=False)
+        from ai.utils.checkpoint import load_checkpoint
+
+        checkpoint = load_checkpoint(_CHECKPOINT_PATH, map_location="cpu")
         config = checkpoint.get("config", {})
 
         WINDOW_SIZE = config.get("window_size", 24)

@@ -12,6 +12,7 @@ import torch
 from torch.utils.data import DataLoader
 
 from ai.model.transformer import TSTransformer
+from ai.utils.checkpoint import load_checkpoint
 from ai.training.config import TrainingConfig
 from ai.training.evaluate import ModelEvaluator
 from ai.training.runner import (
@@ -51,7 +52,7 @@ def run_backtest_records(
 
         _, _, test_ds, preprocessor = prepare_datasets(df, config)
 
-        checkpoint = torch.load(ckpt_path, map_location="cpu", weights_only=False)
+        checkpoint = load_checkpoint(ckpt_path, map_location="cpu")
         ckpt_cfg = checkpoint.get("config", {})
 
         model = TSTransformer(

@@ -17,6 +17,7 @@ import numpy as np
 import torch
 
 from ai.model.transformer import TSTransformer
+from ai.utils.checkpoint import load_checkpoint
 from ai.training.backtest import (
     BACKTEST_MODEL_VERSION,
     SUPPORTED_BACKTEST_COUNTRIES,
@@ -49,7 +50,7 @@ def _load_checkpoint_meta() -> dict[str, Any]:
     if not ckpt_path.exists():
         return {}
     try:
-        ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=False)
+        ckpt = load_checkpoint(ckpt_path, map_location="cpu")
         return {
             "epoch": int(ckpt.get("epoch", 0)) + 1,
             "val_loss": float(ckpt.get("val_loss", 0.0)),
@@ -59,6 +60,31 @@ def _load_checkpoint_meta() -> dict[str, Any]:
     except Exception as exc:
         logger.warning("Could not read checkpoint metadata: %s", exc)
         return {}
+
+
+def _load_scaler_meta() -> dict[str, Any]:
+    path = _models_dir() / "scaler_meta.json"
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        logger.warning("Could not parse scaler_meta.json: %s", exc)
+        return {}
+
+
+def _metrics_from_scaler_meta() -> dict[str, float] | None:
+    meta = _load_scaler_meta()
+    raw = meta.get("evaluation_metrics")
+    if not raw:
+        return None
+    return {
+        "mape": float(raw.get("mape", 100.0)),
+        "accuracy_pct": float(raw.get("accuracy_pct", 0.0)),
+        "rmse": float(raw.get("rmse", 0.0)),
+        "mae": float(raw.get("mae", 0.0)),
+        "r2_score": float(raw.get("r2_score", 0.0)),
+    }
 
 
 def _load_history_file() -> dict[str, list[float]] | None:
@@ -144,7 +170,7 @@ def _load_model_and_test_data(
     config = TrainingConfig().resolved_paths(_backend_root())
     _, _, test_ds, preprocessor = prepare_datasets(df, config)
 
-    checkpoint = torch.load(ckpt_path, map_location="cpu", weights_only=False)
+    checkpoint = load_checkpoint(ckpt_path, map_location="cpu")
     ckpt_cfg = checkpoint.get("config", {})
 
     model = TSTransformer(
@@ -253,11 +279,19 @@ def get_overall_backtest_performance() -> dict[str, Any]:
         all_records.extend(run_backtest_records(code))
 
     metrics = compute_accuracy_from_records(all_records)
+    source = "live_backtest"
+    if not all_records:
+        cached = _metrics_from_scaler_meta()
+        if cached:
+            metrics = cached
+            source = "scaler_meta"
+
     return {
         "model_version": BACKTEST_MODEL_VERSION,
         "total_records": len(all_records),
         "countries_evaluated": len(SUPPORTED_BACKTEST_COUNTRIES),
         "metrics": metrics,
+        "metrics_source": source,
         "summary_cards": [
             {"label": "Accuracy", "value": f"{metrics['accuracy_pct']}%", "key": "accuracy_pct"},
             {"label": "MAPE", "value": f"{metrics['mape']}%", "key": "mape"},
@@ -270,10 +304,13 @@ def get_overall_backtest_performance() -> dict[str, Any]:
 
 def get_country_backtest_results() -> list[dict[str, Any]]:
     """Country-level backtest breakdown for bar/table charts."""
+    cached = _metrics_from_scaler_meta()
     results: list[dict[str, Any]] = []
     for code in SUPPORTED_BACKTEST_COUNTRIES:
         records = run_backtest_records(code)
         metrics = compute_accuracy_from_records(records)
+        if not records and cached:
+            metrics = cached
         results.append({
             "country_code": code,
             "country_name": COUNTRY_LABELS.get(code, code),

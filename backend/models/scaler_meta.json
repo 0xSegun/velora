@@ -19,5 +19,13 @@
     "inflation_ma6",
     "inflation_momentum"
   ],
-  "residual_mode": true
+  "residual_mode": true,
+  "evaluation_metrics": {
+    "accuracy_pct": 91.18,
+    "mape": 8.82,
+    "rmse": 1.9161,
+    "mae": 1.153,
+    "r2_score": 0.9713,
+    "n_samples": 92
+  }
 }

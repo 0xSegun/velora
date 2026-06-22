@@ -16,12 +16,39 @@ settings = get_settings()
 _START_TIME = time.time()
 
 
+def _model_artifact_status() -> dict:
+    from pathlib import Path
+
+    backend_root = Path(__file__).resolve().parents[2]
+    models_dir = backend_root / "models"
+    checkpoint = models_dir / "best_model.pt"
+    meta_path = models_dir / "scaler_meta.json"
+    status = {
+        "checkpoint_present": checkpoint.exists(),
+        "checkpoint_bytes": checkpoint.stat().st_size if checkpoint.exists() else 0,
+        "feature_scaler_present": (models_dir / "feature_scaler.pkl").exists(),
+        "target_scaler_present": (models_dir / "target_scaler.pkl").exists(),
+        "training_history_present": (models_dir / "training_history.json").exists(),
+    }
+    if meta_path.exists():
+        try:
+            import json
+
+            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+            status["residual_mode"] = meta.get("residual_mode")
+            status["evaluation_metrics"] = meta.get("evaluation_metrics")
+        except Exception:
+            pass
+    return status
+
+
 async def get_health_status(db: AsyncSession) -> dict:
     db_ok = await check_database_connection()
     return {
         "database": "connected" if db_ok else "disconnected",
         "backend": "running",
         "status": "healthy" if db_ok else "degraded",
+        "model": _model_artifact_status(),
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 

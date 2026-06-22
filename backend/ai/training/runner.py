@@ -410,9 +410,8 @@ def run_training(
     trainer = Trainer(model, cfg)
     history = trainer.train(train_ds, val_ds)
 
-    # Save scalers alongside checkpoint
+    # Save scalers alongside checkpoint (metrics appended after evaluation)
     scaler_dir = Path(cfg.checkpoint_dir)
-    preprocessor.save_scalers(str(scaler_dir))
     preprocessor.save_scaler(preprocessor.feature_scaler, cfg.scaler_save_path)
 
     # Evaluate on held-out test set
@@ -425,6 +424,16 @@ def run_training(
 
     accuracy_pct = max(0.0, 100.0 - metrics.mape)
     elapsed = time.time() - t0
+
+    preprocessor.evaluation_metrics = {
+        "accuracy_pct": round(accuracy_pct, 2),
+        "mape": round(metrics.mape, 2),
+        "rmse": round(metrics.rmse, 4),
+        "mae": round(metrics.mae, 4),
+        "r2_score": round(metrics.r2, 4),
+        "n_samples": metrics.n_samples,
+    }
+    preprocessor.save_scalers(str(scaler_dir))
 
     result = {
         "accuracy": round(accuracy_pct / 100.0, 4),
