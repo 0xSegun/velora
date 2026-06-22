@@ -2,31 +2,42 @@
  * Country currency metadata and exchange rate formatting standards.
  */
 
+import {
+  countryCodeForCurrency,
+  getAllWorldCountries,
+  getWorldCountry,
+} from '@/lib/countryCatalog';
+
 export interface CurrencyInfo {
   code: string;
   name: string;
   symbol: string;
 }
 
-export const CURRENCY_DIRECTORY: Record<string, CurrencyInfo> = {
-  NG: { code: 'NGN', name: 'Nigerian Naira', symbol: '₦' },
-  US: { code: 'USD', name: 'US Dollar', symbol: '$' },
-  GB: { code: 'GBP', name: 'British Pound', symbol: '£' },
-  DE: { code: 'EUR', name: 'Euro', symbol: '€' },
-  FR: { code: 'EUR', name: 'Euro', symbol: '€' },
-  JP: { code: 'JPY', name: 'Japanese Yen', symbol: '¥' },
-  IN: { code: 'INR', name: 'Indian Rupee', symbol: '₹' },
-  CN: { code: 'CNY', name: 'Chinese Yuan', symbol: '¥' },
-  BR: { code: 'BRL', name: 'Brazilian Real', symbol: 'R$' },
-  ZA: { code: 'ZAR', name: 'South African Rand', symbol: 'R' },
-  GH: { code: 'GHS', name: 'Ghanaian Cedi', symbol: '₵' },
-  KE: { code: 'KES', name: 'Kenyan Shilling', symbol: 'KSh' },
-  CA: { code: 'CAD', name: 'Canadian Dollar', symbol: 'C$' },
-  AU: { code: 'AUD', name: 'Australian Dollar', symbol: 'A$' },
-  PK: { code: 'PKR', name: 'Pakistani Rupee', symbol: '₨' },
-};
-
 const USD_INFO: CurrencyInfo = { code: 'USD', name: 'US Dollar', symbol: '$' };
+
+function buildWorldCurrencyMaps(): {
+  byCountry: Record<string, CurrencyInfo>;
+  byCurrency: Record<string, CurrencyInfo>;
+} {
+  const byCountry: Record<string, CurrencyInfo> = {};
+  const byCurrency: Record<string, CurrencyInfo> = {};
+  for (const entry of getAllWorldCountries()) {
+    if (!entry.currency) continue;
+    const info: CurrencyInfo = {
+      code: entry.currency,
+      name: entry.currency_name || entry.currency,
+      symbol: entry.currency_symbol || '',
+    };
+    byCountry[entry.code] = info;
+    if (!byCurrency[entry.currency]) {
+      byCurrency[entry.currency] = info;
+    }
+  }
+  return { byCountry, byCurrency };
+}
+
+const WORLD_MAPS = buildWorldCurrencyMaps();
 
 let _catalogCache: Record<string, CurrencyInfo> | null = null;
 
@@ -47,19 +58,30 @@ export function setCurrencyCatalogFromApi(
   }
 }
 
+/** @deprecated Use world catalog via getCurrencyInfo — kept for legacy imports. */
+export const CURRENCY_DIRECTORY: Record<string, CurrencyInfo> = WORLD_MAPS.byCountry;
+
 export function getCurrencyInfo(
   countryCode: string,
   currencyCode?: string | null,
 ): CurrencyInfo {
   const normalized = countryCode?.toUpperCase() ?? '';
   if (_catalogCache?.[normalized]) return _catalogCache[normalized];
-  const byCountry = CURRENCY_DIRECTORY[normalized];
-  if (byCountry) return byCountry;
+  if (WORLD_MAPS.byCountry[normalized]) return WORLD_MAPS.byCountry[normalized];
+
+  const world = getWorldCountry(normalized);
+  if (world?.currency) {
+    return {
+      code: world.currency,
+      name: world.currency_name || world.currency,
+      symbol: world.currency_symbol || '',
+    };
+  }
+
   if (currencyCode) {
     const cur = currencyCode.toUpperCase();
     if (_catalogCache?.[cur]) return _catalogCache[cur];
-    const entry = Object.values(CURRENCY_DIRECTORY).find((c) => c.code === cur);
-    if (entry) return entry;
+    if (WORLD_MAPS.byCurrency[cur]) return WORLD_MAPS.byCurrency[cur];
     return { code: cur, name: cur, symbol: '' };
   }
   return { code: '—', name: 'Unknown', symbol: '' };
@@ -93,7 +115,6 @@ export function formatExchangeRateBlock(
   countryCode: string,
   currencyCode?: string | null,
 ): { base: string; rate: string } {
-  const info = getCurrencyInfo(countryCode, currencyCode);
   return {
     base: `1 ${USD_INFO.code} (${USD_INFO.symbol})`,
     rate: formatExchangeRate(rate, countryCode, currencyCode),
@@ -102,5 +123,20 @@ export function formatExchangeRateBlock(
 
 export function formatCurrencyLabel(countryCode: string, currencyCode?: string | null): string {
   const info = getCurrencyInfo(countryCode, currencyCode);
-  return `${info.name} (${info.symbol})`;
+  return `${info.name} (${info.symbol || info.code})`;
+}
+
+/** Resolve an ISO2 country code for flag display from country or currency code. */
+export function countryCodeForFlag(
+  code: string | null | undefined,
+  countryCode?: string | null,
+): string | null {
+  if (countryCode?.trim()) {
+    const cc = countryCode.trim().toUpperCase();
+    if (/^[A-Z]{2}$/.test(cc)) return cc;
+  }
+  const normalized = code?.trim().toUpperCase();
+  if (!normalized) return null;
+  if (/^[A-Z]{2}$/.test(normalized)) return normalized;
+  return countryCodeForCurrency(normalized, countryCode);
 }

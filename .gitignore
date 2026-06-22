@@ -12,6 +12,7 @@ venv/
 .env
 .env.local
 .env.production
+!frontend/.env.production
 .env.*.local
 
 # Build outputs
@@ -27,6 +28,7 @@ dist/
 
 # AI model checkpoints (source under backend/ai/model/ is kept)
 *.pt
+!backend/models/best_model.pt
 *.pth
 *.ckpt
 *.onnx
@@ -74,11 +76,19 @@ htmlcov/
 # Dev session artifacts
 terminals/
 agent-tools/
+mcps/
 optimization/audit_*.json
 optimization/deploy_staging/
 optimization/velora-deploy.zip
 optimization/infinicast-deploy.zip
-optimization/PROJECT_OPTIMIZATION_REPORT.md
+
+# Local archives (not deployed)
+archive/
+backend/venv/
+backend_final.log
+backend/_openapi.json
+backend/_map.json
+~$*.docx
 
 # Local env (never ship)
 frontend/.env.local

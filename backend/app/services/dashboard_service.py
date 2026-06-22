@@ -367,6 +367,75 @@ def _economic_health(metrics: dict, prediction: dict | None) -> list[dict]:
     return health
 
 
+async def _metrics_from_api_selection(
+    db: AsyncSession,
+    code: str,
+    prediction_row: Prediction | None,
+) -> dict:
+    """Build dashboard metrics from API-first per-indicator selection."""
+    from app.services.indicator_selection_service import select_best_indicators
+
+    selection = await select_best_indicators(db, code, refresh_apis=True)
+    values = selection.get("values", {})
+    selections = selection.get("selections", {})
+
+    def _src(field: str) -> str | None:
+        sel = selections.get(field, {})
+        return sel.get("source_label") or sel.get("source")
+
+    inflation_sel = selections.get("inflation_rate", {})
+    primary_source = inflation_sel.get("source_label") or inflation_sel.get("source")
+    obs = inflation_sel.get("observation_date")
+
+    deflation = prediction_row.deflation_probability if prediction_row else values.get("deflation_risk")
+    if deflation is not None and deflation <= 1:
+        deflation = deflation * 100
+
+    return {
+        "inflation_rate": values.get("inflation_rate"),
+        "deflation_risk": deflation,
+        "gdp_growth": values.get("gdp_growth"),
+        "interest_rate": values.get("interest_rate"),
+        "exchange_rate": values.get("exchange_rate"),
+        "economic_stability_score": values.get("economic_stability_score"),
+        "currency_strength": values.get("currency_strength"),
+        "cpi": values.get("cpi"),
+        "unemployment_rate": values.get("unemployment_rate"),
+        "gov_spending": values.get("gov_spending"),
+        "trade_balance": values.get("trade_balance"),
+        "oil_price": values.get("oil_price"),
+        "money_supply": values.get("money_supply"),
+        "population": values.get("population"),
+        "data_source": primary_source,
+        "data_selection": selection,
+        "api_coverage_pct": selection.get("api_coverage_pct"),
+        "last_updated": obs,
+        "indicators": [
+            _indicator("inflation_rate", "Inflation Rate", values.get("inflation_rate"), None, suffix="%", source=_src("inflation_rate"), updated_at=obs),
+            _indicator("gdp_growth", "GDP Growth", values.get("gdp_growth"), None, suffix="%", source=_src("gdp_growth"), updated_at=obs),
+            _indicator("interest_rate", "Interest Rate", values.get("interest_rate"), None, suffix="%", source=_src("interest_rate"), updated_at=obs),
+            _indicator("exchange_rate", "Exchange Rate", values.get("exchange_rate"), None, source=_src("exchange_rate"), updated_at=obs),
+            _indicator("cpi", "Consumer Price Index", values.get("cpi"), None, source=_src("cpi"), updated_at=obs),
+            _indicator("unemployment_rate", "Unemployment Rate", values.get("unemployment_rate"), None, suffix="%", source=_src("unemployment_rate"), updated_at=obs),
+            _indicator("gov_spending", "Government Spending", values.get("gov_spending"), None, source=_src("gov_spending"), updated_at=obs),
+            _indicator("oil_price", "Commodity Price Index", values.get("oil_price"), None, source=_src("oil_price"), updated_at=obs),
+        ],
+        "prediction": {
+            "id": str(prediction_row.id) if prediction_row else None,
+            "inflation_rate": prediction_row.inflation_rate if prediction_row else None,
+            "deflation_probability": prediction_row.deflation_probability if prediction_row else None,
+            "trend_direction": prediction_row.trend_direction if prediction_row else None,
+            "confidence_score": prediction_row.confidence_score if prediction_row else None,
+            "risk_level": prediction_row.risk_level if prediction_row else None,
+            "ai_summary": prediction_row.ai_summary if prediction_row else None,
+            "forecast_horizon": prediction_row.forecast_horizon if prediction_row else None,
+            "created_at": prediction_row.created_at.isoformat() if prediction_row else None,
+        }
+        if prediction_row
+        else None,
+    }
+
+
 async def _build_country_card(
     db: AsyncSession, user: User, code: str, *, featured: bool = False
 ) -> dict:
@@ -375,14 +444,11 @@ async def _build_country_card(
     if country_row:
         meta = serialize_country(country_row.code, country_row.name)
 
-    economic = await _get_economic_records(db, code)
     prediction_row = await _get_latest_prediction(db, user.id, code)
-    metrics = _merge_metrics(country_row, economic, prediction_row)
+    metrics = await _metrics_from_api_selection(db, code, prediction_row)
     pred_dict = metrics.pop("prediction", None)
 
     fx_data = await get_rate_for_country(db, code)
-    if fx_data.exchange_rate is not None:
-        metrics["exchange_rate"] = fx_data.exchange_rate
     metrics["exchange_rate_detail"] = {
         "rate": fx_data.exchange_rate,
         "change_24h": fx_data.change_24h,

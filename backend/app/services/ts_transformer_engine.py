@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 import math
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -16,7 +17,7 @@ import torch
 import torch.nn as nn
 
 from ai.model.transformer import TSTransformer
-from ai.pipeline.preprocess import DEFAULT_FEATURE_COLS, EVENT_FEATURE_DIM
+from ai.pipeline.preprocess import DEFAULT_FEATURE_COLS, DataPreprocessor, EVENT_FEATURE_DIM
 
 logger = logging.getLogger(__name__)
 
@@ -73,23 +74,90 @@ FEATURE_LABELS = {
 }
 
 _model: TSTransformer | None = None
-WINDOW_SIZE = 12
+_preprocessor: DataPreprocessor | None = None
+_model_loaded: bool = False
+_forecast_horizon: int = 6
+WINDOW_SIZE = 24
+
+_BACKEND_ROOT = Path(__file__).resolve().parents[2]
+_CHECKPOINT_PATH = _BACKEND_ROOT / "models" / "best_model.pt"
+_SCALER_DIR = _BACKEND_ROOT / "models"
+
+
+def _checkpoint_available() -> bool:
+    return _CHECKPOINT_PATH.exists()
+
+
+def reload_model() -> bool:
+    """Load or reload the trained checkpoint into the inference engine."""
+    global _model, _preprocessor, _model_loaded, WINDOW_SIZE, _forecast_horizon
+
+    if not _checkpoint_available():
+        _model_loaded = False
+        return False
+
+    try:
+        from ai.pipeline.preprocess import DataPreprocessor
+
+        checkpoint = torch.load(_CHECKPOINT_PATH, map_location="cpu", weights_only=False)
+        config = checkpoint.get("config", {})
+
+        WINDOW_SIZE = config.get("window_size", 24)
+        _forecast_horizon = config.get("forecast_horizon", 6)
+        n_features = config.get(
+            "n_features", len(DEFAULT_FEATURE_COLS) + 1 + EVENT_FEATURE_DIM
+        )
+
+        _model = TSTransformer(
+            n_features=n_features,
+            d_model=config.get("d_model", 128),
+            nhead=config.get("nhead", 8),
+            num_layers=config.get("num_layers", 4),
+            dim_feedforward=config.get("dim_feedforward", 512),
+            dropout=0.0,
+            forecast_horizon=_forecast_horizon,
+        )
+        _model.load_state_dict(checkpoint["model_state_dict"])
+        _model.eval()
+
+        _preprocessor = DataPreprocessor(
+            window_size=WINDOW_SIZE,
+            forecast_horizon=_forecast_horizon,
+        )
+        if _SCALER_DIR.exists():
+            _preprocessor.load_scalers(str(_SCALER_DIR))
+            from ai.training.runner import TRAINING_FEATURE_COLS
+            _preprocessor.feature_columns = TRAINING_FEATURE_COLS
+
+        _model_loaded = True
+        logger.info(
+            "Loaded trained TS-Transformer (epoch %d, window=%d, horizon=%d)",
+            checkpoint.get("epoch", -1),
+            WINDOW_SIZE,
+            _forecast_horizon,
+        )
+        return True
+    except Exception as exc:
+        logger.warning("Failed to load model checkpoint: %s", exc)
+        _model_loaded = False
+        return False
 
 
 def _get_model(max_horizon: int = 24) -> TSTransformer:
     global _model
     if _model is None:
-        n_features = len(DEFAULT_FEATURE_COLS) + EVENT_FEATURE_DIM
-        _model = TSTransformer(
-            n_features=n_features,
-            d_model=128,
-            nhead=8,
-            num_layers=4,
-            dim_feedforward=512,
-            dropout=0.1,
-            forecast_horizon=max_horizon,
-        )
-        _model.eval()
+        if not reload_model():
+            n_features = len(DEFAULT_FEATURE_COLS) + EVENT_FEATURE_DIM
+            _model = TSTransformer(
+                n_features=n_features,
+                d_model=128,
+                nhead=8,
+                num_layers=4,
+                dim_feedforward=512,
+                dropout=0.1,
+                forecast_horizon=max_horizon,
+            )
+            _model.eval()
     return _model
 
 
@@ -125,6 +193,15 @@ def build_event_features(events: list[dict]) -> list[float]:
     return [count_norm, severity_norm, impact_norm, recency]
 
 
+def _inference_feature_keys() -> list[str]:
+    """Feature column order used at inference (matches training when checkpoint loaded)."""
+    if _model_loaded and _preprocessor is not None:
+        cols = getattr(_preprocessor, "feature_columns", None)
+        if cols:
+            return list(cols)
+    return list(DEFAULT_FEATURE_COLS)
+
+
 def build_sequence(
     input_data: dict[str, Any],
     events: list[dict] | None = None,
@@ -132,16 +209,53 @@ def build_sequence(
 ) -> torch.Tensor:
     """Build (1, seq_len, n_features) tensor for TS-Transformer."""
     event_feats = build_event_features(events or [])
-    base_keys = list(DEFAULT_FEATURE_COLS)
+    base_keys = _inference_feature_keys()
     seq: list[list[float]] = []
+
+    use_trained_scaler = (
+        _model_loaded
+        and _preprocessor is not None
+        and _preprocessor.feature_scaler is not None
+    )
 
     for step in range(WINDOW_SIZE):
         decay = 1.0 - (WINDOW_SIZE - 1 - step) * 0.02
-        row = [_normalise(input_data.get(k), k) * decay for k in base_keys]
+        row: list[float] = []
+        for k in base_keys:
+            if k == "inflation_rate":
+                val = input_data.get("inflation_rate")
+                if val is None:
+                    val = (input_data.get("cpi") or 300.0) / 30.0
+            else:
+                val = input_data.get(k)
+            if use_trained_scaler:
+                default_map = {
+                    "cpi": 300.0,
+                    "gdp_growth": 3.0,
+                    "interest_rate": 15.0,
+                    "exchange_rate": 400.0,
+                    "oil_price": 75.0,
+                    "gov_spending": 500.0,
+                    "employment_rate": 90.0,
+                    "money_supply": 5000.0,
+                    "inflation_rate": 15.0,
+                }
+                row.append(float(val if val is not None else default_map.get(k, 0.0)))
+            else:
+                if k == "inflation_rate":
+                    row.append(_normalise(val, "cpi") * decay)
+                else:
+                    row.append(_normalise(val, k) * decay)
         row.extend(event_feats)
         seq.append(row)
 
-    tensor = torch.tensor([seq], dtype=torch.float32)
+    raw = np.array(seq, dtype=np.float32)
+    n_base = len(base_keys)
+
+    if use_trained_scaler:
+        raw[:, :n_base] = _preprocessor.feature_scaler.transform(raw[:, :n_base])
+
+    tensor = torch.tensor([raw], dtype=torch.float32)
 
     if sentiment_adj != 0.0:
         tensor = tensor + sentiment_adj * 0.05
@@ -277,23 +391,35 @@ def run_ts_transformer_forecast(
     trend_logits: list[float] = [0.0, 1.0, 0.0]
     attention_map: list[list[float]] = []
 
+    model_horizon_rates: list[float] | None = None
+
     try:
         with torch.no_grad():
             outputs = model(features)
             attention_map = _extract_attention_map(model)
 
             raw_rates = outputs["inflation_rate"][0].cpu().numpy()
-            # Scale sigmoid-like outputs to realistic inflation range
-            base_heuristic = _heuristic_base(input_data, event_feats)
-            model_signal = float(raw_rates[min(primary_horizon - 1, len(raw_rates) - 1)])
-            inflation_rate = round(base_heuristic * 0.7 + abs(model_signal) * 5.0 * 0.3, 2)
-            inflation_rate = float(np.clip(inflation_rate, 0.5, 45.0))
+
+            if _model_loaded and _preprocessor is not None and _preprocessor.target_scaler is not None:
+                n = len(raw_rates)
+                raw_rates = _preprocessor.inverse_transform_target(
+                    raw_rates.reshape(-1, 1)
+                ).reshape(n)
+                model_horizon_rates = [float(np.clip(r, 0.1, 50.0)) for r in raw_rates]
+                h_idx = min(primary_horizon - 1, len(model_horizon_rates) - 1)
+                inflation_rate = round(model_horizon_rates[h_idx], 2)
+                confidence = round(float(outputs["confidence_score"][0].cpu().item()), 4)
+                confidence = float(np.clip(confidence * 0.85 + 0.12, 0.55, 0.97))
+            else:
+                base_heuristic = _heuristic_base(input_data, event_feats)
+                model_signal = float(raw_rates[min(primary_horizon - 1, len(raw_rates) - 1)])
+                inflation_rate = round(base_heuristic * 0.7 + abs(model_signal) * 5.0 * 0.3, 2)
+                inflation_rate = float(np.clip(inflation_rate, 0.5, 45.0))
+                confidence = round(float(outputs["confidence_score"][0].cpu().item()), 4)
+                confidence = float(np.clip(confidence * 0.6 + 0.35, 0.4, 0.95))
 
             deflation_raw = outputs["deflation_prob"][0, 0].cpu().item()
             deflation_prob = round(float(deflation_raw), 4)
-
-            confidence = round(float(outputs["confidence_score"][0].cpu().item()), 4)
-            confidence = float(np.clip(confidence * 0.6 + 0.35, 0.4, 0.95))
 
             trend_logits = outputs["trend_direction"][0].cpu().numpy().tolist()
     except Exception as exc:
@@ -315,7 +441,10 @@ def run_ts_transformer_forecast(
     now = datetime.now(timezone.utc)
 
     for h in HORIZONS:
-        h_rate = round(inflation_rate + drift * (h / 6.0) + event_feats[2] * 0.5, 2)
+        if model_horizon_rates and h <= len(model_horizon_rates):
+            h_rate = round(model_horizon_rates[h - 1], 2)
+        else:
+            h_rate = round(inflation_rate + drift * (h / 6.0) + event_feats[2] * 0.5, 2)
         h_conf = round(confidence * (1.0 - h * 0.015), 4)
         h_bands = _confidence_bands(h_rate, h_conf)
         multi_horizon[str(h)] = {
@@ -336,7 +465,10 @@ def run_ts_transformer_forecast(
     # Forecast points for primary horizon chart
     forecast_points = []
     for m in range(1, primary_horizon + 1):
-        pt_rate = round(inflation_rate + drift * m, 2)
+        if model_horizon_rates and m <= len(model_horizon_rates):
+            pt_rate = round(model_horizon_rates[m - 1], 2)
+        else:
+            pt_rate = round(inflation_rate + drift * m, 2)
         pt_bands = _confidence_bands(pt_rate, confidence)
         forecast_points.append({
             "month": m,

@@ -280,7 +280,7 @@ export default function BrandingPage() {
           type="button"
           onClick={() => void saveAll()}
           disabled={saving}
-          className="inline-flex items-center gap-2 rounded-xl bg-[var(--text-primary)] px-5 py-2.5 text-sm font-semibold text-[var(--bg-primary)] disabled:opacity-50"
+          className="inline-flex items-center gap-2 rounded-xl bg-[var(--accent)] px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
         >
           {saving ? <Loader2 size={14} className="animate-spin" /> : <Palette size={14} />}
           Save all brand settings

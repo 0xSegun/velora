@@ -17,23 +17,43 @@ from app.data.exchangerate_currencies import (
     EXCHANGERATE_CURRENCIES,
     SUPPORTED_CURRENCY_CODES,
 )
+from app.data.world_countries import (
+    load_world_countries,
+    world_countries_by_code,
+    world_currency_to_country,
+)
 from app.models.country import Country
 
 logger = logging.getLogger(__name__)
 
 
 def get_country_reference() -> dict[str, dict]:
-    """Build country reference dict compatible with legacy COUNTRY_REFERENCE shape."""
+    """Build country reference dict — all 249 ISO territories plus FX catalog overlays."""
     ref: dict[str, dict] = {}
-    for code, meta in COUNTRY_BY_CODE.items():
+    for entry in load_world_countries():
+        code = entry["code"].upper()
         ref[code] = {
-            "name": meta["name"],
-            "region": meta.get("region"),
-            "continent": meta.get("continent"),
-            "currency": meta.get("currency"),
-            "currency_name": meta.get("currency_name"),
-            "currency_symbol": meta.get("currency_symbol"),
+            "name": entry["name"],
+            "region": entry.get("region"),
+            "continent": entry.get("continent"),
+            "currency": entry.get("currency"),
+            "currency_name": entry.get("currency_name"),
+            "currency_symbol": entry.get("currency_symbol"),
         }
+    for code, meta in COUNTRY_BY_CODE.items():
+        if code in ref:
+            for key in ("name", "region", "continent", "currency", "currency_name", "currency_symbol"):
+                if meta.get(key):
+                    ref[code][key] = meta[key]
+        else:
+            ref[code] = {
+                "name": meta["name"],
+                "region": meta.get("region"),
+                "continent": meta.get("continent"),
+                "currency": meta.get("currency"),
+                "currency_name": meta.get("currency_name"),
+                "currency_symbol": meta.get("currency_symbol"),
+            }
     return ref
 
 
@@ -43,11 +63,16 @@ def get_currency_metadata(currency_code: str) -> dict | None:
 
 def country_code_for_currency(currency_code: str, preferred_country: str | None = None) -> str | None:
     cur = currency_code.upper()
-    if preferred_country and preferred_country.upper() in COUNTRY_BY_CODE:
-        ref = COUNTRY_BY_CODE[preferred_country.upper()]
-        if (ref.get("currency") or "").upper() == cur:
-            return preferred_country.upper()
-    return CURRENCY_TO_COUNTRY.get(cur)
+    if preferred_country:
+        pref = preferred_country.upper()
+        world = world_countries_by_code().get(pref)
+        if world and (world.get("currency") or "").upper() == cur:
+            return pref
+        if pref in COUNTRY_BY_CODE:
+            ref = COUNTRY_BY_CODE[pref]
+            if (ref.get("currency") or "").upper() == cur:
+                return pref
+    return CURRENCY_TO_COUNTRY.get(cur) or world_currency_to_country().get(cur)
 
 
 def list_catalog_currencies() -> list[dict]:
@@ -67,6 +92,62 @@ def list_catalog_currencies() -> list[dict]:
 
 def list_catalog_countries() -> list[dict]:
     return list(get_country_reference().values())
+
+
+async def seed_world_countries(db: AsyncSession) -> int:
+    """Seed all ISO 3166-1 alpha-2 countries (249); preserve existing economic profiles."""
+    result = await db.execute(select(Country))
+    existing = {row.code.upper(): row for row in result.scalars().all()}
+    created = 0
+    updated = 0
+
+    for entry in load_world_countries():
+        code = entry["code"].upper()
+        row = existing.get(code)
+        if row:
+            changed = False
+            if entry.get("name") and row.name != entry["name"] and row.name == code:
+                row.name = entry["name"]
+                changed = True
+            if not row.region and entry.get("region"):
+                row.region = entry["region"]
+                changed = True
+            if not row.continent and entry.get("continent"):
+                row.continent = entry["continent"]
+                changed = True
+            if not row.currency and entry.get("currency"):
+                row.currency = entry["currency"]
+                changed = True
+            if changed:
+                updated += 1
+            continue
+
+        db.add(
+            Country(
+                name=entry["name"],
+                code=code,
+                region=entry.get("region"),
+                continent=entry.get("continent"),
+                currency=entry.get("currency"),
+                inflation_rate=None,
+                deflation_risk=None,
+                gdp=None,
+                interest_rate=None,
+                economic_stability_score=None,
+                currency_strength=None,
+            )
+        )
+        created += 1
+
+    if created or updated:
+        await db.flush()
+        logger.info(
+            "World countries: %d created, %d metadata updates (%d ISO entries)",
+            created,
+            updated,
+            len(load_world_countries()),
+        )
+    return created
 
 
 async def seed_exchangerate_countries(db: AsyncSession) -> int:
@@ -134,4 +215,6 @@ __all__ = [
     "list_catalog_countries",
     "list_catalog_currencies",
     "seed_exchangerate_countries",
+    "seed_world_countries",
+    "world_countries_by_code",
 ]

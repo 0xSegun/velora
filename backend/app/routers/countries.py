@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models.country import Country
 from app.models.user import User
+from app.data.world_countries import load_world_countries
 from app.services.country_service import serialize_country
 from app.services.exchange_rate_service import get_rate_for_country, get_rates_for_countries_batch
 from app.utils.security import get_current_user
@@ -35,6 +36,28 @@ def _serialize(country: Country) -> dict:
         "currency_strength": country.currency_strength,
         "updated_at": country.updated_at.isoformat(),
     }
+
+
+@router.get("/catalog")
+async def country_catalog(
+    _: User = Depends(get_current_user),
+):
+    """Lightweight full world catalog (249 ISO territories) with flags and currencies."""
+    items = []
+    for entry in load_world_countries():
+        meta = serialize_country(entry["code"], entry["name"])
+        items.append({
+            "code": meta["code"],
+            "name": meta["name"],
+            "flag": meta["flag"],
+            "flag_url": meta["flag_url"],
+            "currency": entry.get("currency") or meta.get("currency"),
+            "currency_name": entry.get("currency_name") or meta.get("currency_name"),
+            "currency_symbol": entry.get("currency_symbol") or meta.get("currency_symbol"),
+            "continent": entry.get("continent") or meta.get("continent"),
+            "region": entry.get("region") or meta.get("region"),
+        })
+    return {"countries": items, "total": len(items)}
 
 
 @router.get("")

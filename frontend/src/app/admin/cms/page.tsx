@@ -49,7 +49,7 @@ function CmsInput({
   multiline?: boolean;
 }) {
   const cls =
-    'w-full rounded-xl border border-[var(--border-hover)] bg-[var(--accent-faint)] px-4 py-2.5 text-sm text-[var(--text-primary)] placeholder-slate-600 outline-none transition focus:border-[var(--border-active)]/50 focus:ring-1 focus:ring-[var(--border-hover)]';
+    'app-input w-full rounded-xl px-4 py-2.5 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] outline-none transition';
   return (
     <div>
       <label htmlFor={id} className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">

@@ -29,7 +29,7 @@ Straightforward steps to put your code on GitHub and launch the **frontend** on 
 ### 1. Open the project folder
 
 ```bash
-cd path/to/infinicast
+cd path/to/velora
 ```
 
 ### 2. Initialize Git (skip if already a repo)

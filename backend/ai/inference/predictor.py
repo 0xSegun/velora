@@ -230,10 +230,10 @@ class InflationPredictor:
     ) -> dict[str, Any]:
         """Pull raw NumPy values out of the model output dict."""
         inflation = outputs["inflation_rate"][0, :horizon].cpu().numpy().tolist()
-        deflation_prob = float(outputs["deflation_probability"][0, 0].cpu().item())
+        deflation_prob = float(outputs["deflation_prob"][0, 0].cpu().item())
         trend_logits = outputs["trend_direction"][0].cpu().numpy()
-        confidence = float(outputs["confidence_score"][0, 0].cpu().item())
-        risk = float(outputs["risk_level"][0, 0].cpu().item())
+        confidence = float(outputs["confidence_score"][0].cpu().item())
+        risk = float(outputs["risk_level"][0].cpu().item())
 
         # Decode trend
         trend_idx = int(trend_logits.argmax())

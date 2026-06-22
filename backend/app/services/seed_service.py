@@ -387,14 +387,36 @@ DEFAULT_EVENTS = [
 ]
 
 DEFAULT_NEWS = [
-    ("Nigeria Inflation Eases Slightly in Latest CPI Report", "NG", "inflation",
-     "Headline inflation moderated marginally but food prices remain elevated.", 0.25, 0.45, 0.30),
-    ("US CPI Shows Continued Disinflation Trend", "US", "inflation",
-     "Consumer prices rose 0.2% month-over-month, below consensus estimates.", 0.55, 0.30, 0.15),
-    ("Bank of England Signals Cautious Rate Path", "GB", "monetary_policy",
-     "BoE minutes indicate data-dependent approach to further rate adjustments.", 0.30, 0.50, 0.20),
-    ("Emerging Market Currencies Under Pressure", None, "markets",
-     "Dollar strength weighs on EM currencies amid global risk-off sentiment.", 0.15, 0.40, 0.45),
+    ("Nigeria Inflation Eases Slightly in Latest CPI Report", "NG", "inflation", "Reuters",
+     "Headline inflation moderated marginally but food prices remain elevated. The National Bureau of Statistics reported softer core inflation while transport costs stayed firm.",
+     0.25, 0.45, 0.30),
+    ("US CPI Shows Continued Disinflation Trend", "US", "inflation", "Bloomberg",
+     "Consumer prices rose 0.2% month-over-month, below consensus estimates. Services inflation cooled while shelter costs remained sticky.",
+     0.55, 0.30, 0.15),
+    ("Bank of England Signals Cautious Rate Path", "GB", "interest_rates", "Financial Times",
+     "BoE minutes indicate a data-dependent approach to further rate adjustments amid mixed growth signals.",
+     0.30, 0.50, 0.20),
+    ("Emerging Market Currencies Under Pressure", None, "exchange_rates", "CNBC",
+     "Dollar strength weighs on emerging-market currencies amid global risk-off sentiment and higher Treasury yields.",
+     0.15, 0.40, 0.45),
+    ("World Bank Warns on Food Price Volatility in Africa", "NG", "inflation", "World Bank",
+     "The World Bank highlights climate and logistics shocks as key drivers of food price volatility across Sub-Saharan Africa.",
+     0.20, 0.35, 0.45),
+    ("IMF Revises Global Growth Outlook Amid Trade Tensions", None, "gdp", "IMF",
+     "The IMF trimmed its global growth forecast while noting resilient US consumption and softer manufacturing PMIs in Europe.",
+     0.40, 0.45, 0.15),
+    ("OECD Inflation Monitor Shows Diverging Paths", "DE", "inflation", "OECD",
+     "Euro-area disinflation continues but services prices prove persistent in several member economies.",
+     0.45, 0.40, 0.15),
+    ("Oil Prices Climb on Supply Concerns", "NG", "commodities", "Reuters",
+     "Crude oil benchmarks rose on supply disruption fears, raising pass-through risks for fuel and transportation costs.",
+     0.15, 0.30, 0.55),
+    ("Naira Weakens at Official Market Window", "NG", "exchange_rates", "Bloomberg",
+     "Naira depreciation at the official window increases import-cost pressures for manufacturers and households.",
+     0.10, 0.35, 0.55),
+    ("Trading Economics: Central Banks Hold Rates Steady", "GH", "interest_rates", "Trading Economics",
+     "Several African central banks kept policy rates unchanged, citing the need to anchor inflation expectations.",
+     0.35, 0.50, 0.15),
 ]
 
 DEFAULT_PUBLICATIONS = [
@@ -430,10 +452,11 @@ async def seed_intelligence_data(db: AsyncSession) -> int:
 
     news_count = (await db.execute(select(func.count()).select_from(EconomicNews))).scalar() or 0
     if news_count == 0:
-        for title, code, cat, summary, pos, neu, neg in DEFAULT_NEWS:
+        for title, code, cat, source, summary, pos, neu, neg in DEFAULT_NEWS:
             db.add(EconomicNews(
                 title=title, country_code=code, category=cat, summary=summary,
-                source="Velora Intelligence", sentiment_positive=pos,
+                content=summary,
+                source=source, sentiment_positive=pos,
                 sentiment_neutral=neu, sentiment_negative=neg,
                 published_at=now - timedelta(days=created),
             ))

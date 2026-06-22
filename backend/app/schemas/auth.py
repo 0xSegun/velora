@@ -2,6 +2,8 @@
 Authentication request/response schemas.
 """
 
+from typing import Literal
+
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from app.schemas.user import UserResponse
@@ -14,6 +16,10 @@ class RegisterRequest(BaseModel):
     phone: str | None = Field(default=None, max_length=50)
     institution: str | None = Field(default=None, max_length=255)
     country: str = Field(default="NG", max_length=10)
+    role: Literal["user", "analyst"] = Field(
+        default="user",
+        description="Ordinary user (default) or analyst — admins are assigned manually",
+    )
 
     @field_validator("password")
     @classmethod

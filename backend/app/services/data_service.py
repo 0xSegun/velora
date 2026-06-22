@@ -5,7 +5,6 @@ Economic data service — ingest from FRED, CBN/NBS, and manual uploads.
 import logging
 from datetime import date, datetime, timezone
 
-import httpx
 from fastapi import HTTPException, status
 from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,87 +21,18 @@ from app.schemas.economic_data import (
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
-# ── FRED API integration ─────────────────────────────────────────────────────
-
-# Mapping of our field names → FRED series IDs (US-centric, adjust per country)
-_FRED_SERIES: dict[str, str] = {
-    "cpi": "CPIAUCSL",
-    "gdp": "GDP",
-    "gdp_growth": "A191RL1Q225SBEA",
-    "interest_rate": "FEDFUNDS",
-    "unemployment_rate": "UNRATE",
-    "inflation_rate": "FPCPITOTLZGUSA",
-    "money_supply": "M2SL",
-    "oil_price": "DCOILWTICO",
-    "trade_balance": "BOPGSTB",
-}
-
-
-async def fetch_fred_series(series_id: str, limit: int = 1) -> list[dict]:
-    """Fetch the latest observations for a FRED series."""
-    if not settings.FRED_API_KEY:
-        logger.warning("FRED_API_KEY not configured")
-        return []
-
-    url = "https://api.stlouisfed.org/fred/series/observations"
-    params = {
-        "series_id": series_id,
-        "api_key": settings.FRED_API_KEY,
-        "file_type": "json",
-        "sort_order": "desc",
-        "limit": limit,
-    }
-
-    async with httpx.AsyncClient(timeout=15) as client:
-        resp = await client.get(url, params=params)
-        if resp.status_code != 200:
-            logger.error("FRED API error for %s: %s", series_id, resp.text)
-            return []
-        data = resp.json()
-        return data.get("observations", [])
+# ── FRED API integration (delegates to fred_service) ─────────────────────────
 
 
 async def ingest_fred_data(db: AsyncSession, country_code: str = "US") -> int:
-    """Pull latest data from FRED for all tracked series and persist."""
-    created = 0
-    for field, series_id in _FRED_SERIES.items():
-        try:
-            obs = await fetch_fred_series(series_id, limit=1)
-            if not obs:
-                continue
-            latest = obs[0]
-            value_str = latest.get("value", ".")
-            if value_str == ".":
-                continue
+    """Pull latest FRED data via the configured FRED API center."""
+    from app.services.fred_service import get_config, sync_data
 
-            data_date = datetime.strptime(latest["date"], "%Y-%m-%d").date()
-
-            # Upsert: check if we already have this data point
-            existing = await db.execute(
-                select(EconomicData).where(
-                    EconomicData.country_code == country_code,
-                    EconomicData.data_date == data_date,
-                    EconomicData.source == DataSource.FRED,
-                )
-            )
-            if existing.scalar_one_or_none():
-                continue
-
-            record = EconomicData(
-                country_code=country_code,
-                country_name="United States",
-                data_date=data_date,
-                source=DataSource.FRED,
-                **{field: float(value_str)},
-            )
-            db.add(record)
-            created += 1
-        except Exception:
-            logger.exception("Failed to ingest FRED series %s", series_id)
-
-    if created:
-        await db.flush()
-    return created
+    config = await get_config(db)
+    if not config.is_active and not config.api_key:
+        return 0
+    result = await sync_data(db, force=True)
+    return int(result.get("records", 0))
 
 
 # ── CBN / NBS data parsing ───────────────────────────────────────────────────
@@ -216,8 +146,14 @@ async def sync_indicators(db: AsyncSession) -> dict[str, int]:
 
     synced = await sync_countries_to_economic_data(db)
     fred_created = 0
-    if settings.FRED_API_KEY:
-        fred_created = await ingest_fred_data(db, "US")
+    try:
+        from app.services.fred_service import get_config
+
+        fred_cfg = await get_config(db)
+        if fred_cfg.is_active or fred_cfg.api_key or settings.FRED_API_KEY:
+            fred_created = await ingest_fred_data(db, "US")
+    except Exception:
+        logger.exception("FRED sync during indicator sync failed")
     return {"synced": synced, "fred_ingested": fred_created}
 
 

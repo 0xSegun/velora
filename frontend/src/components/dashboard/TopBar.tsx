@@ -18,24 +18,38 @@ import Link from "next/link";
 import GlobalSearch from "@/components/search/GlobalSearch";
 import NotificationCenter from "./NotificationCenter";
 import { performLogout } from "@/lib/logout";
-import { getFirstName } from "@/lib/greeting";
 import { useAuthStore } from "@/store/authStore";
 import { useThemeStore } from "@/store/themeStore";
+import { isAnalystRole } from "@/lib/roles";
 
-/* ---------- Page title map ---------- */
 const pageTitles: Record<string, string> = {
   "/dashboard": "Overview",
   "/dashboard/predictions": "Predictions",
   "/dashboard/analytics": "Analytics",
-  "/dashboard/countries": "Countries",
+  "/dashboard/countries": "My Countries",
+  "/dashboard/news": "Economic News",
+  "/dashboard/help": "Help Center",
   "/dashboard/research": "Research",
   "/dashboard/reports": "Reports",
   "/dashboard/settings": "Settings",
   "/dashboard/notifications": "Notifications",
   "/dashboard/profile": "Profile",
+  "/analyst": "Overview",
+  "/analyst/predictions": "Predictions",
+  "/analyst/analytics": "Analytics",
+  "/analyst/countries": "Countries",
+  "/analyst/events": "Economic Events",
+  "/analyst/research": "Research Center",
+  "/analyst/reports": "Reports",
+  "/analyst/scenarios": "Scenario Simulator",
+  "/analyst/accuracy": "Accuracy",
+  "/analyst/explainability": "Explainable AI",
+  "/analyst/models": "Model Performance",
+  "/analyst/data-sources": "Data Sources",
+  "/analyst/api-status": "API Status",
+  "/analyst/notifications": "Notifications",
 };
 
-/* ---------- User menu items ---------- */
 const userMenuItems = [
   { label: "Profile", href: "/dashboard/profile", icon: User },
   { label: "Settings", href: "/dashboard/settings", icon: Settings },
@@ -43,17 +57,21 @@ const userMenuItems = [
   { label: "Security", href: "/dashboard/settings", icon: Shield },
 ];
 
-/* ---------- Component ---------- */
 interface TopBarProps {
   onOpenMobileSidebar?: () => void;
 }
 
 export default function TopBar({ onOpenMobileSidebar }: TopBarProps) {
   const pathname = usePathname();
-  const title = pageTitles[pathname] ?? "Dashboard";
+  const title = pageTitles[pathname] ?? (pathname.startsWith("/analyst") ? "Analyst" : "Dashboard");
   const { theme, toggleTheme, hasHydrated } = useThemeStore();
   const user = useAuthStore((s) => s.user);
-  const firstName = getFirstName(user?.full_name);
+  const searchScope =
+    pathname.startsWith("/admin")
+      ? "admin"
+      : pathname.startsWith("/analyst") || isAnalystRole(user?.role)
+        ? "analyst"
+        : "dashboard";
   const initials = (user?.full_name ?? "U")
     .split(" ")
     .map((part) => part[0])
@@ -63,7 +81,6 @@ export default function TopBar({ onOpenMobileSidebar }: TopBarProps) {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
-  // Close on outside click
   useEffect(() => {
     function handler(e: MouseEvent) {
       if (
@@ -77,143 +94,122 @@ export default function TopBar({ onOpenMobileSidebar }: TopBarProps) {
   }, []);
 
   return (
-    <header
-      className="
-        glass-nav sticky top-0 z-10
-        border-b border-[var(--border-primary)] px-4 sm:px-6
-        print:hidden
-      "
-    >
-      <div className="flex h-16 items-center justify-between">
-      {/* -- Left: page title -- */}
-      <div className="flex items-center gap-3">
-        <button
-          type="button"
-          onClick={onOpenMobileSidebar}
-          className="rounded-lg p-2 text-[var(--text-muted)] transition hover:bg-[var(--accent-faint)] hover:text-[var(--text-primary)] lg:hidden"
-          aria-label="Open navigation menu"
-        >
-          <Menu size={20} />
-        </button>
-        <h1
-          id="topbar-title"
-          className="text-lg font-semibold text-[var(--text-primary)]"
-        >
-          {title}
-        </h1>
-      </div>
-
-      <GlobalSearch
-        scope="dashboard"
-        id="topbar-search"
-        className="hidden w-80 md:block"
-      />
-
-      <div className="flex items-center gap-2">
-        {/* Notification bell */}
-        <NotificationCenter />
-
-        {/* Theme toggle */}
-        <button
-          id="theme-toggle"
-          onClick={toggleTheme}
-          className="p-2 rounded-lg hover:bg-[var(--accent-faint)] transition-colors"
-          aria-label="Toggle theme"
-        >
-          {!hasHydrated || theme === "dark" ? (
-            <Sun className="w-5 h-5 text-[var(--text-muted)]" />
-          ) : (
-            <Moon className="w-5 h-5 text-[var(--text-muted)]" />
-          )}
-        </button>
-
-        {/* User avatar with dropdown */}
-        <div ref={userMenuRef} className="relative">
+    <header className="glass-nav sticky top-0 z-10 border-b border-[var(--border-primary)] px-4 sm:px-6 print:hidden">
+      <div className="flex h-16 items-center justify-between gap-4">
+        <div className="flex items-center gap-3 min-w-0">
           <button
-            id="topbar-user-avatar"
-            onClick={() => setUserMenuOpen(!userMenuOpen)}
-            className="
-              flex items-center gap-2 rounded-xl px-2 py-1.5
-              hover:bg-[var(--accent-faint)] transition-all cursor-pointer
-            "
+            type="button"
+            onClick={onOpenMobileSidebar}
+            className="btn-ghost rounded-xl p-2 lg:hidden"
+            aria-label="Open navigation menu"
           >
-            <div
-              className="
-              w-8 h-8 rounded-full
-              bg-gradient-to-br from-neutral-600 to-neutral-800
-              dark:from-neutral-300 dark:to-neutral-500
-              flex items-center justify-center
-              text-[11px] font-bold text-[var(--text-primary)] dark:text-black
-              ring-2 ring-transparent hover:ring-[var(--border-hover)]
-              transition-all
-            "
+            <Menu size={20} />
+          </button>
+          <div className="min-w-0">
+            <h1
+              id="topbar-title"
+              className="text-xl font-bold text-[var(--text-primary)] truncate tracking-tight"
+              style={{ fontFamily: "var(--font-display), sans-serif" }}
             >
-              {initials}
-            </div>
-            <ChevronDown
-              size={14}
-              className={`text-[var(--text-muted)] transition-transform ${userMenuOpen ? "rotate-180" : ""}`}
-            />
+              {title}
+            </h1>
+          </div>
+        </div>
+
+        <GlobalSearch
+          scope={searchScope}
+          role={user?.role}
+          id="topbar-search"
+          className="hidden w-80 md:block"
+        />
+
+        <div className="flex items-center gap-1.5">
+          <NotificationCenter />
+
+          <button
+            id="theme-toggle"
+            onClick={toggleTheme}
+            className="btn-ghost rounded-xl p-2.5"
+            aria-label="Toggle theme"
+          >
+            {!hasHydrated || theme === "dark" ? (
+              <Sun className="w-[18px] h-[18px]" />
+            ) : (
+              <Moon className="w-[18px] h-[18px]" />
+            )}
           </button>
 
-          <AnimatePresence>
-            {userMenuOpen && (
-              <motion.div
-                initial={{ opacity: 0, y: -8, scale: 0.96 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -8, scale: 0.96 }}
-                transition={{ duration: 0.15 }}
-                className="glass-panel absolute right-0 top-12 z-50 w-52 overflow-hidden rounded-xl shadow-2xl"
-              >
-                {/* User info */}
-                <div className="px-4 py-3 border-b border-[var(--border-primary)]">
-                  <p className="text-sm font-semibold text-[var(--text-primary)]">
-                    {user?.full_name ?? "Account"}
-                  </p>
-                  <p className="text-xs text-[var(--text-muted)]">
-                    {user?.email ?? ""}
-                  </p>
-                </div>
+          <div ref={userMenuRef} className="relative">
+            <button
+              id="topbar-user-avatar"
+              onClick={() => setUserMenuOpen(!userMenuOpen)}
+              className="flex items-center gap-2 rounded-xl px-2 py-1.5 hover:bg-[var(--accent-faint)] transition-all cursor-pointer"
+            >
+              <div className="w-8 h-8 rounded-full bg-[var(--accent)] flex items-center justify-center text-[11px] font-bold text-white transition-all">
+                {initials}
+              </div>
+              <ChevronDown
+                size={14}
+                className={`text-[var(--text-muted)] transition-transform hidden sm:block ${userMenuOpen ? "rotate-180" : ""}`}
+              />
+            </button>
 
-                {/* Menu items */}
-                <div className="py-1">
-                  {userMenuItems.map((item) => (
-                    <Link
-                      key={item.label}
-                      href={item.href}
-                      onClick={() => setUserMenuOpen(false)}
-                      className="flex items-center gap-3 px-4 py-2.5 text-sm text-[var(--text-secondary)] hover:bg-[var(--accent-faint)] hover:text-[var(--text-primary)] transition-colors"
+            <AnimatePresence>
+              {userMenuOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: -8, scale: 0.96 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -8, scale: 0.96 }}
+                  transition={{ duration: 0.15 }}
+                  className="glass-panel absolute right-0 top-12 z-50 w-56 overflow-hidden rounded-2xl shadow-2xl"
+                >
+                  <div className="px-4 py-3 border-b border-[var(--border-primary)]">
+                    <p className="text-sm font-semibold text-[var(--text-primary)]">
+                      {user?.full_name ?? "Account"}
+                    </p>
+                    <p className="text-xs text-[var(--text-muted)] truncate">
+                      {user?.email ?? ""}
+                    </p>
+                  </div>
+
+                  <div className="py-1">
+                    {userMenuItems.map((item) => (
+                      <Link
+                        key={item.label}
+                        href={item.href}
+                        onClick={() => setUserMenuOpen(false)}
+                        className="flex items-center gap-3 px-4 py-2.5 text-sm text-[var(--text-secondary)] hover:bg-[var(--accent-faint)] hover:text-[var(--text-primary)] transition-colors"
+                      >
+                        <item.icon size={15} className="text-[var(--text-muted)]" />
+                        {item.label}
+                      </Link>
+                    ))}
+                  </div>
+
+                  <div className="border-t border-[var(--border-primary)] py-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUserMenuOpen(false);
+                        void performLogout("/");
+                      }}
+                      className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-[var(--text-secondary)] hover:bg-[var(--accent-faint)] hover:text-[var(--text-primary)] transition-colors"
                     >
-                      <item.icon size={15} />
-                      {item.label}
-                    </Link>
-                  ))}
-                </div>
-
-                {/* Logout */}
-                <div className="border-t border-[var(--border-primary)] py-1">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setUserMenuOpen(false);
-                      void performLogout("/");
-                    }}
-                    className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-[var(--text-secondary)] hover:bg-[var(--accent-faint)] hover:text-[var(--text-primary)] transition-colors"
-                  >
-                    <LogOut size={15} />
-                    Sign out
-                  </button>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+                      <LogOut size={15} />
+                      Sign out
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
-      </div>
       </div>
 
       <div className="border-t border-[var(--border-primary)] px-0 pb-3 pt-2 md:hidden">
         <GlobalSearch
-          scope="dashboard"
+          scope={searchScope}
+          role={user?.role}
           id="topbar-search-mobile"
           className="w-full"
           compact

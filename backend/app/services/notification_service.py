@@ -115,38 +115,7 @@ async def mark_all_read(db: AsyncSession, *, user: User) -> int:
     return int(result.rowcount or 0)
 
 
-async def seed_default_notifications(db: AsyncSession) -> None:
-    """Seed starter notifications for users who have none (development/demo)."""
-    users_result = await db.execute(select(User).where(User.is_active.is_(True)))
-    users = list(users_result.scalars().all())
-    if not users:
-        return
 
-    seeds = [
-        ("New Prediction Available", "Nigeria Q3 inflation forecast is ready to view", "prediction"),
-        ("AI Training Completed", "TS-Transformer v2.4 training finished with 97.3% accuracy", "training"),
-        ("Dataset Uploaded", "Nigeria_CPI_2024.xlsx successfully parsed", "dataset"),
-        ("Model Deployed", "TS-Transformer v2.4 is now the active prediction model", "model"),
-        ("System Update", "Platform maintenance scheduled for Sunday 2:00 AM WAT", "system"),
-        ("Security Notice", "New login detected from Lagos, Nigeria", "security"),
-    ]
-
-    for user in users:
-        count_result = await db.execute(
-            select(func.count(Notification.id)).where(Notification.user_id == user.id)
-        )
-        if int(count_result.scalar() or 0) > 0:
-            continue
-
-        for title, message, ntype in seeds:
-            await create_notification(
-                db,
-                user_id=user.id,
-                title=title,
-                message=message,
-                type=ntype,
-                emit=False,
-            )
 
 
 async def delete_notification(db: AsyncSession, *, user: User, notification_id: uuid.UUID) -> None:

@@ -5,21 +5,26 @@ import { searchAPI } from "@/lib/api";
 import { fallbackSearch } from "@/lib/searchFallback";
 import {
   ADMIN_NAV_ITEMS,
-  DASHBOARD_NAV_ITEMS,
+  ANALYST_NAV_ITEMS,
+  ORDINARY_NAV_ITEMS,
   mergeSearchGroups,
   searchNavItems,
 } from "@/lib/searchNav";
+import type { UserRole } from "@/lib/roles";
+import { isAnalystRole } from "@/lib/roles";
 import type { SearchGroup } from "@/types/search";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 
 interface UseGlobalSearchOptions {
-  scope: "dashboard" | "admin";
+  scope: "dashboard" | "admin" | "analyst";
+  role?: UserRole | null;
   limit?: number;
   minLength?: number;
 }
 
 export function useGlobalSearch({
   scope,
+  role,
   limit = 5,
   minLength = 2,
 }: UseGlobalSearchOptions) {
@@ -29,7 +34,12 @@ export function useGlobalSearch({
   const [error, setError] = useState<string | null>(null);
   const debouncedQuery = useDebouncedValue(query, 280);
 
-  const navItems = scope === "admin" ? ADMIN_NAV_ITEMS : DASHBOARD_NAV_ITEMS;
+  const navItems =
+    scope === "admin"
+      ? ADMIN_NAV_ITEMS
+      : scope === "analyst" || isAnalystRole(role)
+        ? ANALYST_NAV_ITEMS
+        : ORDINARY_NAV_ITEMS;
 
   const pageResults = useMemo(
     () => searchNavItems(debouncedQuery, navItems, limit),

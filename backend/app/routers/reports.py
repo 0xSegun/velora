@@ -7,6 +7,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import FileResponse
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,7 +16,7 @@ from app.database import get_db
 from app.models.report import Report
 from app.models.user import User
 from app.schemas.report import ReportCreate, ReportListResponse, ReportResponse
-from app.services import pdf_service, report_service
+from app.services import pdf_service, report_generator_service, report_service
 from app.services.analytics_tracker import track_event
 from app.utils.security import get_current_user, require_admin
 
@@ -23,6 +24,13 @@ settings = get_settings()
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
 
 router = APIRouter(prefix="/api/reports", tags=["Reports"])
+
+
+class ReportGenerateRequest(BaseModel):
+    country_code: str
+    horizon_months: int = Field(default=6, ge=1, le=24)
+    report_type: str = "custom"
+    indicator_focus: str | None = None
 
 
 @router.get("", response_model=ReportListResponse)
@@ -70,6 +78,25 @@ async def create_report(
     current_user: User = Depends(get_current_user),
 ):
     return await report_service.create_report(db, user=current_user, payload=payload)
+
+
+@router.post("/generate", response_model=ReportResponse, status_code=201)
+async def generate_intelligence_report(
+    payload: ReportGenerateRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Generate a research-grade country intelligence report from live data."""
+    report = await report_generator_service.generate_country_report(
+        db,
+        user=current_user,
+        country_code=payload.country_code,
+        horizon_months=payload.horizon_months,
+        report_type=payload.report_type,
+        indicator_focus=payload.indicator_focus,
+    )
+    await db.commit()
+    return report
 
 
 @router.post("/sync", dependencies=[Depends(require_admin)])

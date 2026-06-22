@@ -22,6 +22,7 @@ import AdminSidebar from "@/components/admin/AdminSidebar";
 import GlobalSearch from "@/components/search/GlobalSearch";
 import NotificationCenter from "@/components/dashboard/NotificationCenter";
 import AppAmbient from "@/components/ui/AppAmbient";
+import BackendStatusBanner from "@/components/ui/BackendStatusBanner";
 import { performLogout } from "@/lib/logout";
 import { useAuthStore } from "@/store/authStore";
 import { useThemeStore } from "@/store/themeStore";
@@ -155,7 +156,7 @@ export default function AdminLayout({
                 onClick={() => setAdminMenuOpen(!adminMenuOpen)}
                 className="glass-card flex items-center gap-2 rounded-xl px-3 py-1.5 transition hover:transform-none hover:border-[var(--border-hover)]"
               >
-                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-neutral-500 to-neutral-700 text-xs font-bold text-[var(--text-primary)]">
+                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--accent)] text-xs font-bold text-white">
                   A
                 </div>
                 <div className="hidden sm:block">
@@ -250,6 +251,7 @@ export default function AdminLayout({
             />
           </div>
         </header>
+        <BackendStatusBanner />
 
         {/* Page Content */}
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">

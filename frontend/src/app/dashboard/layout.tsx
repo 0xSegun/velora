@@ -3,9 +3,11 @@
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import AuthGuard from "@/components/auth/AuthGuard";
+import RoleGuard from "@/components/auth/RoleGuard";
 import Sidebar from "@/components/dashboard/Sidebar";
 import TopBar from "@/components/dashboard/TopBar";
 import AppAmbient from "@/components/ui/AppAmbient";
+import BackendStatusBanner from "@/components/ui/BackendStatusBanner";
 
 /**
  * Dashboard shell layout.
@@ -20,6 +22,7 @@ export default function DashboardLayout({
 
   return (
     <AuthGuard>
+    <RoleGuard>
     <div className="app-shell relative flex h-screen overflow-hidden">
       <AppAmbient />
       {/* Desktop sidebar */}
@@ -55,11 +58,13 @@ export default function DashboardLayout({
       {/* Right content area */}
       <div className="app-shell-content relative z-10 flex min-h-0 min-w-0 flex-1 flex-col">
         <TopBar onOpenMobileSidebar={() => setMobileSidebarOpen(true)} />
+        <BackendStatusBanner />
 
         {/* Page content */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6">{children}</main>
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 page-enter">{children}</main>
       </div>
     </div>
+    </RoleGuard>
     </AuthGuard>
   );
 }

@@ -60,7 +60,7 @@ export default function HowItWorks() {
                 <span className="text-xs font-mono text-[var(--text-faint)] tracking-widest">
                   {s.step}
                 </span>
-                <div className="w-10 h-10 rounded-xl glass flex items-center justify-center text-[var(--text-primary)]">
+                <div className="w-10 h-10 rounded-xl bg-[var(--accent-faint)] border border-[var(--accent)]/20 flex items-center justify-center text-[var(--accent)]">
                   <Icon size={18} />
                 </div>
               </div>

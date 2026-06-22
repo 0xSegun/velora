@@ -2,8 +2,7 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronDown } from "lucide-react";
-import SectionHeading from "./SectionHeading";
+import { Plus } from "lucide-react";
 import { useCms } from "@/hooks/useSiteSettings";
 
 export default function FAQ() {
@@ -14,39 +13,33 @@ export default function FAQ() {
     setOpenIndex((prev) => (prev === idx ? null : idx));
 
   return (
-    <section id="faq" className="landing-section py-24 relative">
-      <div className="absolute inset-x-0 top-0 glass-divider" />
+    <section id="faq" className="landing-section py-32 relative">
+      <div className="max-w-2xl mx-auto px-6">
+        <p className="text-sm text-[var(--text-muted)] mb-10 text-center">
+          {faq.eyebrow || "FAQ"}
+        </p>
 
-      <SectionHeading
-        eyebrow={faq.eyebrow}
-        title={faq.title}
-        subtitle={faq.subtitle}
-      />
-
-      <div className="max-w-3xl mx-auto mt-14 px-4">
-        <div className="glass-panel rounded-2xl overflow-hidden divide-y divide-[var(--border-primary)]">
+        <div className="divide-y divide-[var(--border-primary)]">
           {faq.items.map((item, i) => {
             const isOpen = openIndex === i;
 
             return (
-              <div key={i} className="px-5 md:px-6">
+              <div key={i}>
                 <button
                   id={`faq-toggle-${i}`}
                   onClick={() => toggle(i)}
-                  className="w-full flex justify-between items-center py-5 text-left group"
+                  className="w-full flex justify-between items-center py-6 text-left group"
                 >
-                  <span className="text-base font-medium text-[var(--text-primary)] pr-4 group-hover:text-[var(--text-secondary)] transition-colors">
+                  <span className="text-base font-medium text-[var(--text-primary)] pr-6">
                     {item.question}
                   </span>
-                  <motion.div
-                    animate={{ rotate: isOpen ? 180 : 0 }}
-                    transition={{ duration: 0.3 }}
+                  <motion.span
+                    animate={{ rotate: isOpen ? 45 : 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="text-[var(--text-muted)] shrink-0"
                   >
-                    <ChevronDown
-                      size={18}
-                      className="text-[var(--text-muted)] shrink-0"
-                    />
-                  </motion.div>
+                    <Plus size={18} strokeWidth={1.5} />
+                  </motion.span>
                 </button>
 
                 <AnimatePresence initial={false}>
@@ -56,10 +49,10 @@ export default function FAQ() {
                       initial={{ height: 0, opacity: 0 }}
                       animate={{ height: "auto", opacity: 1 }}
                       exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.3, ease: "easeInOut" }}
+                      transition={{ duration: 0.25, ease: "easeInOut" }}
                       className="overflow-hidden"
                     >
-                      <p className="text-sm text-[var(--text-muted)] pb-5 leading-relaxed">
+                      <p className="text-sm text-[var(--text-muted)] pb-6 leading-relaxed max-w-xl">
                         {item.answer}
                       </p>
                     </motion.div>

@@ -66,10 +66,40 @@ async def admin_dashboard(
         )
     ).scalar() or 0
 
+    from app.config import get_settings
     from app.services.exchange_rate_service import get_config, get_health
+    from app.services.fred_service import get_config as get_fred_config
+    from app.services.fred_service import get_health as get_fred_health
+    from app.services.imf_service import get_config as get_imf_config
+    from app.services.imf_service import get_health as get_imf_health
+    from app.services.world_bank_service import get_config as get_world_bank_config
+    from app.services.world_bank_service import get_health as get_world_bank_health
+    from app.services.trading_economics_service import (
+        get_config as get_trading_economics_config,
+    )
+    from app.services.trading_economics_service import (
+        get_health as get_trading_economics_health,
+    )
+    from app.services.news_service import get_config as get_news_config
+    from app.services.news_service import get_health as get_news_health
+    from app.services.wikipedia_service import get_config as get_wiki_config
+    from app.services.wikipedia_service import get_health as get_wiki_health
 
+    app_settings = get_settings()
     fx_config = await get_config(db)
     fx_health = await get_health(db)
+    fred_config = await get_fred_config(db)
+    fred_health = await get_fred_health(db)
+    news_config = await get_news_config(db)
+    news_health = await get_news_health(db)
+    imf_config = await get_imf_config(db)
+    imf_health = await get_imf_health(db)
+    world_bank_config = await get_world_bank_config(db)
+    world_bank_health = await get_world_bank_health(db)
+    trading_economics_config = await get_trading_economics_config(db)
+    trading_economics_health = await get_trading_economics_health(db)
+    wiki_config = await get_wiki_config(db)
+    wiki_health = await get_wiki_health(db)
 
     return {
         "users": {
@@ -97,6 +127,101 @@ async def admin_dashboard(
             "success_rate": fx_health.success_rate,
             "error_count": fx_config.error_count,
             "api_key_set": bool(fx_config.api_key),
+        },
+        "fred_status": {
+            "provider": fred_config.provider_name,
+            "is_active": fred_config.is_active,
+            "status": fred_health.status,
+            "sync_status": fred_config.sync_status.value,
+            "last_sync": fred_config.last_sync.isoformat() if fred_config.last_sync else None,
+            "next_sync": fred_config.next_sync.isoformat() if fred_config.next_sync else None,
+            "success_rate": fred_health.success_rate,
+            "error_count": fred_config.error_count,
+            "api_key_set": fred_health.is_active or bool(fred_config.api_key),
+            "indicators_enabled": fred_health.indicators_enabled,
+            "records_retrieved": fred_health.records_retrieved,
+            "data_quality_score": fred_health.data_quality_score,
+            "model_feature_count": fred_health.model_feature_count,
+            "failover_warning": fred_health.failover_warning,
+        },
+        "news_status": {
+            "provider": news_config.provider_name,
+            "is_active": news_config.is_active,
+            "status": news_health.status,
+            "sync_status": news_config.sync_status.value,
+            "last_sync": news_config.last_sync.isoformat() if news_config.last_sync else None,
+            "next_sync": news_config.next_sync.isoformat() if news_config.next_sync else None,
+            "success_rate": news_health.success_rate,
+            "error_count": news_config.error_count,
+            "articles_retrieved": news_health.articles_retrieved,
+            "using_cached_data": news_health.using_cached_data,
+        },
+        "imf_status": {
+            "provider": imf_config.provider_name,
+            "is_active": imf_config.is_active,
+            "status": imf_health.status,
+            "sync_status": imf_config.sync_status.value,
+            "last_sync": imf_config.last_sync.isoformat() if imf_config.last_sync else None,
+            "next_sync": imf_config.next_sync.isoformat() if imf_config.next_sync else None,
+            "success_rate": imf_health.success_rate,
+            "error_count": imf_config.error_count,
+            "countries_synced": imf_health.countries_synced,
+            "using_cached_data": imf_health.using_cached_data,
+        },
+        "world_bank_status": {
+            "provider": world_bank_config.provider_name,
+            "is_active": world_bank_config.is_active,
+            "status": world_bank_health.status,
+            "sync_status": world_bank_config.sync_status.value,
+            "last_sync": (
+                world_bank_config.last_sync.isoformat()
+                if world_bank_config.last_sync
+                else None
+            ),
+            "next_sync": (
+                world_bank_config.next_sync.isoformat()
+                if world_bank_config.next_sync
+                else None
+            ),
+            "success_rate": world_bank_health.success_rate,
+            "error_count": world_bank_config.error_count,
+            "countries_synced": world_bank_health.countries_synced,
+            "using_cached_data": world_bank_health.using_cached_data,
+        },
+        "trading_economics_status": {
+            "provider": trading_economics_config.provider_name,
+            "is_active": trading_economics_config.is_active,
+            "status": trading_economics_health.status,
+            "sync_status": trading_economics_config.sync_status.value,
+            "last_sync": (
+                trading_economics_config.last_sync.isoformat()
+                if trading_economics_config.last_sync
+                else None
+            ),
+            "next_sync": (
+                trading_economics_config.next_sync.isoformat()
+                if trading_economics_config.next_sync
+                else None
+            ),
+            "success_rate": trading_economics_health.success_rate,
+            "error_count": trading_economics_config.error_count,
+            "api_key_set": bool(
+                trading_economics_config.api_key or app_settings.TRADING_ECONOMICS_API_KEY
+            ),
+            "countries_synced": trading_economics_health.countries_synced,
+            "using_cached_data": trading_economics_health.using_cached_data,
+        },
+        "wikipedia_status": {
+            "provider": wiki_config.provider_name,
+            "is_active": wiki_config.is_active,
+            "status": wiki_health.status,
+            "sync_status": wiki_config.sync_status.value,
+            "last_sync": wiki_config.last_sync.isoformat() if wiki_config.last_sync else None,
+            "next_sync": wiki_config.next_sync.isoformat() if wiki_config.next_sync else None,
+            "success_rate": wiki_health.success_rate,
+            "error_count": wiki_config.error_count,
+            "countries_synced": wiki_health.countries_synced,
+            "using_cached_data": wiki_health.using_cached_data,
         },
         "generated_at": now.isoformat(),
     }

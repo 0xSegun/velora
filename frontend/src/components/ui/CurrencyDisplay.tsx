@@ -8,6 +8,8 @@ import {
 } from '@/lib/currency';
 import { sentimentClass } from '@/lib/financialColors';
 import { cn } from '@/lib/utils';
+import { getCountryMeta } from '@/lib/countries';
+import { CountryFlag, CurrencyBadge } from '@/components/ui/CountryFlag';
 
 interface CurrencyDisplayProps {
   countryCode: string;
@@ -54,12 +56,19 @@ export default function CurrencyDisplay({
   if (variant === 'profile') {
     return (
       <div className={cn('space-y-2 text-sm', className)}>
-        {countryName && (
-          <p className="font-semibold text-[var(--text-primary)]">{countryName}</p>
-        )}
+        <div className="flex items-center gap-2">
+          <CountryFlag code={countryCode} size="md" />
+          {countryName && (
+            <p className="font-semibold text-[var(--text-primary)]">{countryName}</p>
+          )}
+        </div>
         <div className="grid gap-1 text-xs">
-          <p className="text-[var(--text-muted)]">
+          <p className="flex flex-wrap items-center gap-2 text-[var(--text-muted)]">
             Currency:{' '}
+            <CurrencyBadge
+              currencyCode={info.code}
+              countryCode={countryCode}
+            />
             <span className="text-[var(--text-secondary)]">
               {formatCurrencyLabel(countryCode, currencyCode)}
             </span>
@@ -68,9 +77,13 @@ export default function CurrencyDisplay({
             Symbol:{' '}
             <span className="font-medium text-[var(--text-primary)]">{info.symbol || '—'}</span>
           </p>
-          <p className="text-[var(--text-muted)]">
+          <p className="flex items-center gap-2 text-[var(--text-muted)]">
             Code:{' '}
-            <span className="font-mono text-[var(--text-secondary)]">{info.code}</span>
+            <CurrencyBadge
+              currencyCode={info.code}
+              countryCode={countryCode}
+              className="text-[var(--text-secondary)]"
+            />
           </p>
           <p className="text-[var(--text-muted)]">
             Exchange Rate:{' '}
@@ -96,7 +109,10 @@ export default function CurrencyDisplay({
     const block = formatExchangeRateBlock(rate ?? null, countryCode, currencyCode);
     return (
       <div className={cn('space-y-0.5', className)}>
-        <p className="text-[10px] text-[var(--text-faint)]">{block.base}</p>
+        <div className="flex items-center gap-1.5">
+          <CountryFlag code={countryCode} size="xs" />
+          <p className="text-[10px] text-[var(--text-faint)]">{block.base}</p>
+        </div>
         <p className="font-semibold text-[var(--text-primary)]">{block.rate}</p>
         <TrendBadge trend={trend} change7d={change7d} />
         {staleBanner && (
@@ -107,7 +123,8 @@ export default function CurrencyDisplay({
   }
 
   return (
-    <span className={cn('inline-flex flex-col gap-0.5', className)}>
+    <span className={cn('inline-flex items-center gap-1.5', className)}>
+      <CountryFlag code={countryCode} size="xs" />
       <span className="font-semibold" style={{ color: sentimentClass('info') }}>
         {formatExchangeRate(rate ?? null, countryCode, currencyCode)}
       </span>

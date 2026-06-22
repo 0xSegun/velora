@@ -31,6 +31,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
+import { chartTooltipProps } from "@/components/charts/ChartTooltip";
 import {
   exchangeRatesAPI,
   type ExchangeRateAuditLog,
@@ -44,6 +45,7 @@ import { toast } from "@/lib/feedback";
 import { formatDateTime } from "@/lib/dates";
 import { apiHealthSentiment, sentimentClass } from "@/lib/financialColors";
 import EmptyState from "@/components/ui/EmptyState";
+import { CountryBadge, CountryFlag, CountryLabel, CurrencyBadge } from "@/components/ui/CountryFlag";
 
 interface ConfigForm {
   provider_name: string;
@@ -721,9 +723,16 @@ export default function ExchangeRateApiPage() {
               <tbody>
                 {filteredCatalog.map((item) => (
                   <tr key={item.code} className="border-b border-[var(--border-primary)] last:border-0">
-                    <td className="py-2 pr-4 font-mono text-[var(--text-primary)]">{item.code}</td>
+                    <td className="py-2 pr-4 text-[var(--text-primary)]">
+                      <CurrencyBadge currencyCode={item.code} countryCode={item.country_code} />
+                    </td>
                     <td className="py-2 pr-4 text-[var(--text-muted)]">{item.name}</td>
-                    <td className="py-2 pr-4 text-[var(--text-muted)]">{item.country} ({item.country_code})</td>
+                    <td className="py-2 pr-4 text-[var(--text-muted)]">
+                      <span className="inline-flex items-center gap-2">
+                        <CountryFlag code={item.country_code} size="xs" title={item.country} />
+                        {item.country}
+                      </span>
+                    </td>
                     <td className="py-2 pr-4 text-[var(--text-faint)]">{item.region}</td>
                     <td className="py-2 text-[var(--text-primary)]">
                       {item.exchange_rate != null
@@ -819,10 +828,26 @@ export default function ExchangeRateApiPage() {
               <tbody>
                 {filteredRates.map((rate) => (
                   <tr key={rate.id} className="border-b border-[var(--border-primary)] last:border-0">
-                    <td className="py-2 pr-4 font-mono text-[var(--text-primary)]">{rate.target_currency}</td>
+                    <td className="py-2 pr-4 text-[var(--text-primary)]">
+                      <CurrencyBadge
+                        currencyCode={rate.target_currency}
+                        countryCode={rate.country_code}
+                      />
+                    </td>
                     <td className="py-2 pr-4 text-[var(--text-muted)]">{rate.currency_name ?? "—"}</td>
                     <td className="py-2 pr-4 text-[var(--text-muted)]">
-                      {rate.country_name ? `${rate.country_name} (${rate.country_code ?? ""})` : rate.country_code ?? "—"}
+                      {rate.country_name ? (
+                        <span className="inline-flex items-center gap-2">
+                          {rate.country_code ? (
+                            <CountryFlag code={rate.country_code} size="xs" title={rate.country_name} />
+                          ) : null}
+                          {rate.country_name}
+                        </span>
+                      ) : rate.country_code ? (
+                        <CountryLabel code={rate.country_code} flagSize="xs" />
+                      ) : (
+                        "—"
+                      )}
                     </td>
                     <td className="py-2 pr-4" style={{ color: sentimentClass("info") }}>
                       {formatExchangeRate(rate.exchange_rate, rate.country_code ?? rate.target_currency)}
@@ -855,7 +880,14 @@ export default function ExchangeRateApiPage() {
                   <div className="space-y-1 text-xs">
                     {section.items.slice(0, 5).map((item, i) => (
                       <div key={i} className="flex justify-between text-[var(--text-primary)]">
-                        <span>{String(item.target_currency ?? "—")}</span>
+                        <CurrencyBadge
+                          currencyCode={String(item.target_currency ?? "—")}
+                          countryCode={
+                            item.country_code != null
+                              ? String(item.country_code)
+                              : undefined
+                          }
+                        />
                         <span style={{ color: sentimentClass("info") }}>
                           {item.exchange_rate != null
                             ? formatExchangeRate(
@@ -918,7 +950,7 @@ export default function ExchangeRateApiPage() {
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border-primary)" />
                   <XAxis dataKey="date" tick={{ fontSize: 10 }} stroke="var(--text-faint)" />
                   <YAxis tick={{ fontSize: 10 }} stroke="var(--text-faint)" />
-                  <Tooltip />
+                  <Tooltip {...chartTooltipProps} />
                   <Line type="monotone" dataKey="rate" stroke="var(--text-primary)" dot={false} />
                 </LineChart>
               </ResponsiveContainer>

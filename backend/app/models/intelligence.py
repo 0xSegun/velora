@@ -220,3 +220,89 @@ class RetrainingRecommendation(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )
+
+
+class ForecastArchive(Base):
+    __tablename__ = "forecast_archives"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    prediction_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("predictions.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    country_code: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
+    inflation_rate: Mapped[float] = mapped_column(Float, nullable=False)
+    confidence_score: Mapped[float] = mapped_column(Float, nullable=False)
+    reliability_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    forecast_horizon: Mapped[int] = mapped_column(Integer, nullable=False, default=6)
+    input_snapshot: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    output_snapshot: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    model_version: Mapped[str] = mapped_column(String(50), nullable=False, default="TS-Transformer-v3")
+    archived_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+
+
+class IntelligenceAlert(Base):
+    __tablename__ = "intelligence_alerts"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    country_code: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
+    alert_type: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    severity: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    explanation: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    indicator: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    current_value: Mapped[float | None] = mapped_column(Float, nullable=True)
+    previous_value: Mapped[float | None] = mapped_column(Float, nullable=True)
+    change_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
+    extra_data: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class ModelExperiment(Base):
+    __tablename__ = "model_experiments"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    model_version: Mapped[str] = mapped_column(String(50), nullable=False)
+    sequence_length: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    forecast_horizon: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    training_loss: Mapped[float | None] = mapped_column(Float, nullable=True)
+    validation_loss: Mapped[float | None] = mapped_column(Float, nullable=True)
+    epoch_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    attention_config: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    hyperparameters: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    metrics: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    dataset_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="completed")
+    is_deployed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    deployed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+
+
+class BacktestSession(Base):
+    __tablename__ = "backtest_sessions"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    country_code: Mapped[str | None] = mapped_column(String(10), nullable=True, index=True)
+    period_start: Mapped[date | None] = mapped_column(Date, nullable=True)
+    period_end: Mapped[date | None] = mapped_column(Date, nullable=True)
+    model_version: Mapped[str] = mapped_column(String(50), nullable=False)
+    metrics: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    records_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    monthly_report: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    error_distribution: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    country_rankings: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )

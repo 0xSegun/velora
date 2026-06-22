@@ -141,7 +141,7 @@ export default function AdminAuthenticationPage() {
           <button
             onClick={() => void save()}
             disabled={saving || loading}
-            className="inline-flex items-center gap-2 rounded-xl bg-[var(--text-primary)] px-4 py-2.5 text-sm font-medium text-[var(--bg-primary)] disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-xl bg-[var(--accent)] px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50"
           >
             <Save className="h-4 w-4" /> Save Configuration
           </button>

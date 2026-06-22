@@ -19,6 +19,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from 'recharts';
+import { ChartTooltipContent } from '@/components/charts/ChartTooltip';
 import { CountryFlag, CountryLabel } from '@/components/ui/CountryFlag';
 import { predictionsAPI } from '@/lib/api';
 import { toast } from '@/lib/feedback';
@@ -71,28 +72,6 @@ function cellColor(metric: string, value: number | null | undefined): string {
   if (metric === 'gdp_growth') return sentimentClass(gdpSentiment(value));
   return 'var(--text-primary)';
 }
-
-const ChartTooltip = ({
-  active,
-  payload,
-  label,
-}: {
-  active?: boolean;
-  payload?: Array<{ name: string; value: number; color: string }>;
-  label?: string;
-}) => {
-  if (!active || !payload) return null;
-  return (
-    <div className="glass-card rounded-xl p-3 shadow-xl hover:transform-none">
-      <p className="mb-1 text-xs font-medium text-[var(--text-primary)]">{label}</p>
-      {payload.map((entry, i) => (
-        <p key={i} className="text-xs" style={{ color: entry.color }}>
-          {entry.name}: {typeof entry.value === 'number' ? entry.value.toFixed(2) : entry.value}%
-        </p>
-      ))}
-    </div>
-  );
-};
 
 export default function CountryComparePanel({
   countries,
@@ -400,7 +379,15 @@ export default function CountryComparePanel({
               <CartesianGrid strokeDasharray="3 3" stroke={chartGridStroke} />
               <XAxis dataKey="month" tick={chartAxisTick} axisLine={chartAxisLine} />
               <YAxis tick={chartAxisTick} axisLine={chartAxisLine} />
-              <Tooltip content={<ChartTooltip />} />
+              <Tooltip
+              content={
+                <ChartTooltipContent
+                  valueFormatter={(value) =>
+                    typeof value === 'number' ? `${value.toFixed(2)}%` : String(value)
+                  }
+                />
+              }
+            />
               <Legend wrapperStyle={{ fontSize: 11 }} />
               {Object.keys(compareData).map((code, i) => {
                 const lastPoint = comparisonChartData[comparisonChartData.length - 1]?.[code] as number | undefined;

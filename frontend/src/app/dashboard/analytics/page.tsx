@@ -26,6 +26,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
+import { ChartTooltipContent } from "@/components/charts/ChartTooltip";
 import {
   CHART_COLORS,
   barFillForMetric,
@@ -39,6 +40,9 @@ import { economicDataAPI, exchangeRatesAPI, predictionsAPI } from "@/lib/api";
 import { formatPercentage } from "@/lib/utils";
 import FinancialKpiCard from "@/components/ui/FinancialKpiCard";
 import CurrencyDisplay from "@/components/ui/CurrencyDisplay";
+import CountryFocusBar, { useActiveCountryCode } from "@/components/dashboard/CountryFocusBar";
+import { CountryLabel, CurrencyBadge } from "@/components/ui/CountryFlag";
+import { getCountryMeta } from "@/lib/countries";
 import {
   confidenceSentiment,
   gdpSentiment,
@@ -72,28 +76,12 @@ const RANGE_MONTHS: Record<TimeRange, number | null> = {
   All: null,
 };
 
-const CustomTooltip = ({
-  active,
-  payload,
-  label,
-}: {
-  active?: boolean;
-  payload?: Array<{ name: string; value: number; color: string }>;
-  label?: string;
-}) => {
-  if (!active || !payload) return null;
-  return (
-    <div className="glass-card rounded-xl hover:transform-none p-3 shadow-xl">
-      <p className="text-xs font-medium text-[var(--text-primary)] mb-1">{label}</p>
-      {payload.map((entry, i) => (
-        <p key={i} className="text-xs" style={{ color: entry.color }}>
-          {entry.name}:{" "}
-          {typeof entry.value === "number" ? entry.value.toFixed(2) : entry.value}
-          {entry.name.includes("Rate") || entry.name.includes("GDP") ? "%" : ""}
-        </p>
-      ))}
-    </div>
-  );
+const analyticsValueFormatter = (value: number | string, name: string) => {
+  const formatted =
+    typeof value === "number" ? value.toFixed(2) : String(value);
+  return name.includes("Rate") || name.includes("GDP")
+    ? `${formatted}%`
+    : formatted;
 };
 
 function filterByRange<T extends { data_date?: string; created_at?: string }>(
@@ -112,6 +100,7 @@ function filterByRange<T extends { data_date?: string; created_at?: string }>(
 }
 
 export default function AnalyticsPage() {
+  const countryCode = useActiveCountryCode();
   const [timeRange, setTimeRange] = useState<TimeRange>("1Y");
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -143,8 +132,8 @@ export default function AnalyticsPage() {
     setLoading(true);
     try {
       const [predRes, econRes, fxRes] = await Promise.allSettled([
-        predictionsAPI.getHistory({ per_page: 200 }),
-        economicDataAPI.getHistorical({ limit: 500 }),
+        predictionsAPI.getHistory({ per_page: 200, country_code: countryCode }),
+        economicDataAPI.getHistorical({ limit: 500, country_code: countryCode }),
         exchangeRatesAPI.getAnalytics(),
       ]);
 
@@ -168,22 +157,10 @@ export default function AnalyticsPage() {
         setFxAnalytics(null);
       }
 
-      const primaryCode =
-        econRes.status === "fulfilled" && Array.isArray(econRes.value.data)
-          ? [...(econRes.value.data as EconomicRecord[])]
-              .sort(
-                (a, b) =>
-                  new Date(b.data_date).getTime() - new Date(a.data_date).getTime(),
-              )[0]?.country_code
-          : null;
-      if (primaryCode) {
-        try {
-          const fxCountryRes = await exchangeRatesAPI.getByCountry(primaryCode);
-          setLiveFx(fxCountryRes.data);
-        } catch {
-          setLiveFx(null);
-        }
-      } else {
+      try {
+        const fxCountryRes = await exchangeRatesAPI.getByCountry(countryCode);
+        setLiveFx(fxCountryRes.data);
+      } catch {
         setLiveFx(null);
       }
     } catch {
@@ -194,7 +171,7 @@ export default function AnalyticsPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [countryCode]);
 
   useEffect(() => {
     setMounted(true);
@@ -253,7 +230,6 @@ export default function AnalyticsPage() {
         icon: DollarSign,
         label: "Exchange Rate",
         value: String(fxRate),
-        sub: fxCountry,
         sentiment: liveFx?.is_stale ? ("caution" as const) : ("info" as const),
         kind: "exchange" as const,
         countryCode: fxCountry,
@@ -313,7 +289,7 @@ export default function AnalyticsPage() {
     return Array.from(codes).slice(0, 5);
   }, [filteredPredictions]);
 
-  const primaryCountry = latestEconomic?.country_code ?? filteredEconomic[0]?.country_code;
+  const primaryCountry = countryCode;
 
   const economicIndicators = useMemo(() => {
     if (!primaryCountry) return [];
@@ -362,9 +338,10 @@ export default function AnalyticsPage() {
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
           <h1 className="text-2xl font-bold text-[var(--text-primary)]">Analytics</h1>
           <p className="text-sm text-[var(--text-muted)] mt-1">
-            Comprehensive economic analytics and historical trends
+            Economic analytics for <CountryLabel code={countryCode} />
           </p>
         </motion.div>
+        <CountryFocusBar label="Analytics focus" />
         <EmptyState
           icon={BarChart3}
           title="No analytics data available"
@@ -387,9 +364,11 @@ export default function AnalyticsPage() {
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
         <h1 className="text-2xl font-bold text-[var(--text-primary)]">Analytics</h1>
         <p className="text-sm text-[var(--text-muted)] mt-1">
-          Comprehensive economic analytics and historical trends
+          Economic analytics for <CountryLabel code={countryCode} />
         </p>
       </motion.div>
+
+      <CountryFocusBar label="Analytics focus" />
 
       {/* Time Range Selector */}
       <div className="flex gap-2 flex-wrap">
@@ -438,7 +417,6 @@ export default function AnalyticsPage() {
                       trend={m.trend}
                     />
                   </div>
-                  <p className="text-xs mt-1 text-[var(--text-muted)]">{m.sub}</p>
                 </div>
               ) : (
                 <FinancialKpiCard
@@ -484,11 +462,20 @@ export default function AnalyticsPage() {
               <CartesianGrid strokeDasharray="3 3" stroke={chartGridStroke} />
               <XAxis dataKey="date" tick={chartAxisTick} axisLine={chartAxisLine} />
               <YAxis tick={chartAxisTick} axisLine={chartAxisLine} />
-              <Tooltip content={<CustomTooltip />} />
+              <Tooltip
+                content={
+                  <ChartTooltipContent valueFormatter={analyticsValueFormatter} />
+                }
+              />
               <Legend
                 wrapperStyle={{ fontSize: 11 }}
                 formatter={(value: string) => (
-                  <span className="text-[var(--text-muted)]">{value}</span>
+                  <CountryLabel
+                    code={value}
+                    name={getCountryMeta(value).name}
+                    flagSize="xs"
+                    className="text-[var(--text-muted)]"
+                  />
                 )}
               />
               {countryCodes.map((code, i) => {
@@ -540,7 +527,16 @@ export default function AnalyticsPage() {
                 <div className="space-y-1 text-xs">
                   {section.items.slice(0, 5).map((item, i) => (
                     <div key={i} className="flex justify-between text-[var(--text-primary)]">
-                      <span>{String(item.target_currency ?? item.country_code ?? "—")}</span>
+                      <CurrencyBadge
+                        currencyCode={String(
+                          item.target_currency ?? item.country_code ?? "—",
+                        )}
+                        countryCode={
+                          item.country_code != null
+                            ? String(item.country_code)
+                            : undefined
+                        }
+                      />
                       <span style={{ color: sentimentClass("info") }}>
                         {item.exchange_rate != null
                           ? formatExchangeRate(
@@ -575,7 +571,7 @@ export default function AnalyticsPage() {
               className="rounded-xl bg-[var(--glass-bg)] border border-[var(--border-primary)] p-6"
             >
               <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-4">
-                CPI Index — {primaryCountry}
+                CPI Index — <CountryLabel code={primaryCountry} />
               </h3>
               <ResponsiveContainer width="100%" height={250} minWidth={0} minHeight={250}>
                 <AreaChart data={economicIndicators}>
@@ -588,7 +584,11 @@ export default function AnalyticsPage() {
                   <CartesianGrid strokeDasharray="3 3" stroke={chartGridStroke} />
                   <XAxis dataKey="month" tick={chartAxisTickSm} axisLine={chartAxisLine} />
                   <YAxis tick={chartAxisTickSm} axisLine={chartAxisLine} />
-                  <Tooltip content={<CustomTooltip />} />
+                  <Tooltip
+                content={
+                  <ChartTooltipContent valueFormatter={analyticsValueFormatter} />
+                }
+              />
                   <Area
                     type="monotone"
                     dataKey="cpi"
@@ -611,7 +611,7 @@ export default function AnalyticsPage() {
               className="rounded-xl bg-[var(--glass-bg)] border border-[var(--border-primary)] p-6"
             >
               <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-4">
-                Exchange Rate — {primaryCountry}
+                Exchange Rate — <CountryLabel code={primaryCountry} />
               </h3>
               <ResponsiveContainer width="100%" height={250} minWidth={0} minHeight={250}>
                 <AreaChart data={economicIndicators}>
@@ -624,7 +624,11 @@ export default function AnalyticsPage() {
                   <CartesianGrid strokeDasharray="3 3" stroke={chartGridStroke} />
                   <XAxis dataKey="month" tick={chartAxisTickSm} axisLine={chartAxisLine} />
                   <YAxis tick={chartAxisTickSm} axisLine={chartAxisLine} />
-                  <Tooltip content={<CustomTooltip />} />
+                  <Tooltip
+                content={
+                  <ChartTooltipContent valueFormatter={analyticsValueFormatter} />
+                }
+              />
                   <Area
                     type="monotone"
                     dataKey="exchange"
@@ -647,14 +651,18 @@ export default function AnalyticsPage() {
               className="rounded-xl bg-[var(--glass-bg)] border border-[var(--border-primary)] p-6"
             >
               <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-4">
-                Interest Rate — {primaryCountry}
+                Interest Rate — <CountryLabel code={primaryCountry} />
               </h3>
               <ResponsiveContainer width="100%" height={250} minWidth={0} minHeight={250}>
                 <BarChart data={economicIndicators}>
                   <CartesianGrid strokeDasharray="3 3" stroke={chartGridStroke} />
                   <XAxis dataKey="month" tick={chartAxisTickSm} axisLine={chartAxisLine} />
                   <YAxis tick={chartAxisTickSm} axisLine={chartAxisLine} />
-                  <Tooltip content={<CustomTooltip />} />
+                  <Tooltip
+                content={
+                  <ChartTooltipContent valueFormatter={analyticsValueFormatter} />
+                }
+              />
                   <Bar
                     dataKey="interest"
                     fill={CHART_COLORS.info}
@@ -675,7 +683,7 @@ export default function AnalyticsPage() {
               className="rounded-xl bg-[var(--glass-bg)] border border-[var(--border-primary)] p-6"
             >
               <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-4">
-                GDP Growth Rate — {primaryCountry}
+                GDP Growth Rate — <CountryLabel code={primaryCountry} />
               </h3>
               <ResponsiveContainer width="100%" height={250} minWidth={0} minHeight={250}>
                 <AreaChart data={economicIndicators}>
@@ -688,7 +696,11 @@ export default function AnalyticsPage() {
                   <CartesianGrid strokeDasharray="3 3" stroke={chartGridStroke} />
                   <XAxis dataKey="month" tick={chartAxisTickSm} axisLine={chartAxisLine} />
                   <YAxis tick={chartAxisTickSm} axisLine={chartAxisLine} />
-                  <Tooltip content={<CustomTooltip />} />
+                  <Tooltip
+                content={
+                  <ChartTooltipContent valueFormatter={analyticsValueFormatter} />
+                }
+              />
                   <Area
                     type="monotone"
                     dataKey="gdp"

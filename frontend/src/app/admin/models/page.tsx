@@ -26,27 +26,8 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
+import { ChartTooltipContent } from "@/components/charts/ChartTooltip";
 import { useTrainingStore, ModelVersion } from "@/store/trainingStore";
-
-/* ----- Custom Tooltip ----- */
-const ChartTooltip = ({ active, payload, label }: any) => {
-  if (!active || !payload) return null;
-  return (
-    <div className="glass-card rounded-xl hover:transform-none p-3 shadow-xl">
-      <p className="text-xs font-medium text-[var(--text-primary)] mb-1">
-        {label}
-      </p>
-      {payload.map((entry: any, i: number) => (
-        <p key={i} className="text-xs" style={{ color: entry.color }}>
-          {entry.name}:{" "}
-          {typeof entry.value === "number"
-            ? entry.value.toFixed(2)
-            : entry.value}
-        </p>
-      ))}
-    </div>
-  );
-};
 
 /* ----- Status config ----- */
 const statusConfig = {
@@ -57,7 +38,7 @@ const statusConfig = {
   },
   archived: {
     label: "Archived",
-    color: "bg-slate-500/15 text-[var(--text-muted)] border-slate-500/20",
+    color: "bg-[var(--status-bg)] text-[var(--text-muted)] border-[var(--status-border)]",
     icon: Archive,
   },
   draft: {
@@ -94,7 +75,7 @@ export default function ModelsPage() {
       >
         <div>
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-neutral-700 to-neutral-500 shadow-[0_0_20px_rgba(255,255,255,0.08)]">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[var(--accent)] to-[#3b82f6] shadow-[0_0_20px_rgba(255,255,255,0.08)]">
               <GitBranch size={20} className="text-[var(--text-primary)]" />
             </div>
             <div>
@@ -143,7 +124,15 @@ export default function ModelsPage() {
                   axisLine={{ stroke: "var(--border-primary)" }}
                   domain={[80, 100]}
                 />
-                <Tooltip content={<ChartTooltip />} />
+                <Tooltip
+                content={
+                  <ChartTooltipContent
+                    valueFormatter={(value) =>
+                      typeof value === "number" ? value.toFixed(2) : String(value)
+                    }
+                  />
+                }
+              />
                 <Line
                   type="monotone"
                   dataKey="accuracy"
@@ -163,7 +152,7 @@ export default function ModelsPage() {
       {/* Version Timeline */}
       <div className="relative">
         {/* Timeline line */}
-        <div className="absolute left-6 top-0 bottom-0 w-px bg-gradient-to-b from-neutral-600/50 via-[var(--text-faint)] to-transparent hidden lg:block" />
+        <div className="absolute left-6 top-0 bottom-0 w-px bg-gradient-to-b from-[var(--accent)]/50 via-[var(--text-faint)] to-transparent hidden lg:block" />
 
         <div className="space-y-4">
           {models.map((model: any, i: number) => {
@@ -182,14 +171,14 @@ export default function ModelsPage() {
                 {/* Timeline dot */}
                 <div className="absolute left-4 top-6 hidden lg:flex h-4 w-4 items-center justify-center">
                   <div
-                    className={`h-3 w-3 rounded-full ${active ? "bg-neutral-600 shadow-[0_0_10px_rgba(255,255,255,0.12)]" : "bg-slate-600"}`}
+                    className={`h-3 w-3 rounded-full ${active ? "bg-[var(--accent)] shadow-glow-sm" : "bg-[var(--text-faint)]"}`}
                   />
                 </div>
 
                 <div
                   className={`lg:ml-14 rounded-xl border p-5 transition cursor-pointer ${
                     active
-                      ? "border-[var(--border-active)] bg-neutral-600/[0.04] shadow-[0_0_30px_rgba(139,92,246,0.08)]"
+                      ? "border-[var(--accent)]/30 bg-[var(--accent-faint)] shadow-glow-sm"
                       : "border-[var(--border-primary)] bg-[var(--glass-bg)] hover:border-[var(--border-hover)]"
                   }`}
                   onClick={() => setSelectedModel(model)}
@@ -197,7 +186,7 @@ export default function ModelsPage() {
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                     {/* Left - Model info */}
                     <div className="flex items-start gap-3">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-neutral-700 to-neutral-500">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[var(--accent)] to-[#3b82f6]">
                         <Brain
                           size={20}
                           className="text-[var(--text-primary)]"
@@ -346,7 +335,7 @@ export default function ModelsPage() {
 
               {/* Model header */}
               <div className="flex items-center gap-3 mb-6">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-neutral-700 to-neutral-500 shadow-[0_0_20px_rgba(255,255,255,0.08)]">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-[var(--accent)] to-[#3b82f6] shadow-[0_0_20px_rgba(255,255,255,0.08)]">
                   <Brain size={24} className="text-[var(--text-primary)]" />
                 </div>
                 <div>

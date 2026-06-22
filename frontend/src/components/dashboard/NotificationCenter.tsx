@@ -83,6 +83,25 @@ export default function NotificationCenter() {
     return () => document.removeEventListener("mousedown", handler);
   }, [syncNotifications]);
 
+  function playNotificationSound() {
+    try {
+      const audio = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const oscillator = audio.createOscillator();
+      const gain = audio.createGain();
+      oscillator.type = 'sine';
+      oscillator.frequency.value = 880;
+      gain.gain.value = 0.08;
+      const filter = audio.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.value = 1200;
+      oscillator.connect(filter);
+      filter.connect(gain);
+      gain.connect(audio.destination);
+      oscillator.start();
+      setTimeout(() => { oscillator.stop(); audio.close(); }, 220);
+    } catch {}
+  }
+
   useEffect(() => {
     const wsUrl = getNotificationsWebSocketUrl();
     if (!wsUrl) return;
@@ -95,7 +114,10 @@ export default function NotificationCenter() {
           payload && typeof payload === "object" && "notification" in payload
             ? (payload as { notification?: unknown }).notification
             : payload;
-        if (isNotification(notification)) addNotification(notification);
+        if (isNotification(notification)) {
+          addNotification(notification);
+          if (!notification.isRead) playNotificationSound();
+        }
       } catch {
         // Ignore malformed payloads.
       }
@@ -159,7 +181,7 @@ export default function NotificationCenter() {
       >
         <Bell className="w-5 h-5 text-[var(--text-muted)]" />
         {unreadCount > 0 && (
-          <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-[var(--text-primary)] text-[9px] font-bold text-[var(--bg-primary)] ring-2 ring-[var(--bg-primary)]">
+          <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-[var(--accent)] text-[9px] font-bold text-white ring-2 ring-[var(--bg-primary)]">
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}
@@ -215,7 +237,7 @@ export default function NotificationCenter() {
                   onClick={() => setFilter(cat)}
                   className={`px-2.5 py-1 text-[10px] font-medium rounded-full whitespace-nowrap transition-all ${
                     filter === cat
-                      ? "bg-[var(--text-primary)] text-[var(--bg-primary)]"
+                      ? "bg-[var(--accent)] text-white"
                       : "bg-[var(--accent-faint)] text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
                   }`}
                 >

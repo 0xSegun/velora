@@ -1,0 +1,45 @@
+# Render Blueprint — Velora backend API + PostgreSQL
+# Deploy: Render Dashboard → New → Blueprint → connect github.com/0xSegun/velora
+
+databases:
+  - name: velora-db
+    databaseName: velora
+    user: velora
+    plan: free
+
+services:
+  - type: web
+    name: velora-api
+    runtime: python
+    region: oregon
+    plan: free
+    rootDir: backend
+    buildCommand: >-
+      pip install --upgrade pip &&
+      pip install torch --index-url https://download.pytorch.org/whl/cpu &&
+      grep -v '^torch' requirements.txt > /tmp/requirements.no-torch.txt &&
+      pip install -r /tmp/requirements.no-torch.txt &&
+      alembic upgrade head
+    startCommand: python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: APP_NAME
+        value: Velora
+      - key: APP_ENV
+        value: production
+      - key: DEBUG
+        value: "false"
+      - key: SHOW_DEFAULT_ADMIN_CREDENTIALS
+        value: "false"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: velora-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: SECRET_KEY
+        generateValue: true
+      - key: FRONTEND_URL
+        value: https://velora-dusky-chi.vercel.app
+      - key: PYTHON_VERSION
+        value: "3.11.9"

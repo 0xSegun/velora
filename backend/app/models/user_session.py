@@ -33,5 +33,14 @@ class UserSession(Base):
         default=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
+    ip_address: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    device_label: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    last_active_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    revoked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     user = relationship("User", back_populates="sessions", lazy="selectin")

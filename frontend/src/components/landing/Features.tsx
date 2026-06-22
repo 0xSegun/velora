@@ -40,7 +40,7 @@ export default function Features() {
         variants={container}
         initial="hidden"
         animate={inView ? "show" : "hidden"}
-        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-16 max-w-6xl mx-auto px-4"
+        className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-20 max-w-6xl mx-auto px-6"
       >
         {features.items.map((feat, i) => {
           const Icon = resolveCmsIcon(feat.icon);
@@ -49,9 +49,9 @@ export default function Features() {
               key={`${feat.title}-${i}`}
               variants={card}
               id={`feature-card-${i}`}
-              className="glass-card rounded-2xl p-6 group"
+              className="glass-card rounded-2xl p-8 group"
             >
-              <div className="w-11 h-11 rounded-xl glass-heavy flex items-center justify-center mb-4 text-[var(--text-primary)] group-hover:shadow-[var(--glow)] transition-shadow">
+              <div className="w-11 h-11 rounded-xl bg-[var(--accent-faint)] border border-[var(--accent)]/20 flex items-center justify-center mb-4 text-[var(--accent)] group-hover:shadow-glow transition-shadow duration-300">
                 <Icon size={20} />
               </div>
               <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-2">

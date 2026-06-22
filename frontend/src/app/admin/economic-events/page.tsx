@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Calendar, Plus, Upload, Trash2, Loader2 } from "lucide-react";
 import { intelligenceAPI, adminIntelligenceAPI } from "@/lib/api";
 import { toast } from "@/lib/feedback";
+import PageLoadError from "@/components/ui/PageLoadError";
 
 interface EventRow {
   id: string;
@@ -26,6 +27,7 @@ const CATEGORIES = [
 export default function AdminEconomicEventsPage() {
   const [events, setEvents] = useState<EventRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState({
@@ -40,10 +42,12 @@ export default function AdminEconomicEventsPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError(false);
     try {
       const { data } = await intelligenceAPI.listEvents({ per_page: 50 });
       setEvents((data.events ?? []) as EventRow[]);
     } catch {
+      setLoadError(true);
       toast.error("Failed to load events.");
     } finally {
       setLoading(false);
@@ -90,6 +94,15 @@ export default function AdminEconomicEventsPage() {
       <div className="flex min-h-[40vh] items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-[var(--text-muted)]" />
       </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <PageLoadError
+        title="Failed to load economic events"
+        onRetry={() => void load()}
+      />
     );
   }
 
@@ -168,7 +181,7 @@ export default function AdminEconomicEventsPage() {
             className="w-full rounded-lg border border-[var(--border-primary)] bg-transparent px-3 py-2 text-sm"
             rows={2}
           />
-          <button onClick={() => void create()} className="rounded-xl bg-[var(--text-primary)] px-4 py-2 text-sm text-[var(--bg-primary)]">
+          <button onClick={() => void create()} className="rounded-xl bg-[var(--accent)] px-4 py-2 text-sm text-white">
             Save Event
           </button>
         </div>

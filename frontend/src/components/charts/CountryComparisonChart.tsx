@@ -43,30 +43,27 @@ const legend = [
 function CustomTooltip({ active, payload, label }: TooltipProps) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="glass-card rounded-xl hover:transform-none p-3 shadow-xl min-w-[180px]">
-      <p className="text-xs text-[var(--text-muted)] mb-2 font-semibold">
-        {label}
-      </p>
-      {payload.map((entry) => {
-        const meta = legend.find((l) => l.key === entry.dataKey);
-        return (
-          <div
-            key={entry.dataKey}
-            className="flex items-center justify-between gap-4 mb-1 last:mb-0"
-          >
-            <span className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)]">
-              <span
-                className="w-2 h-2 rounded-full"
-                style={{ background: meta?.color }}
-              />
-              {meta?.label ?? entry.dataKey}
-            </span>
-            <span className="text-xs font-semibold text-[var(--text-primary)]">
-              {entry.value}%
-            </span>
-          </div>
-        );
-      })}
+    <div className="chart-tooltip min-w-[180px]">
+      <p className="chart-tooltip__label">{label}</p>
+      <ul className="chart-tooltip__list">
+        {payload.map((entry) => {
+          const meta = legend.find((l) => l.key === entry.dataKey);
+          return (
+            <li key={entry.dataKey} className="chart-tooltip__item">
+              <span className="chart-tooltip__series">
+                <span
+                  className="chart-tooltip__dot"
+                  style={{ backgroundColor: meta?.color }}
+                />
+                <span className="chart-tooltip__name">
+                  {meta?.label ?? entry.dataKey}
+                </span>
+              </span>
+              <span className="chart-tooltip__value">{entry.value}%</span>
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }

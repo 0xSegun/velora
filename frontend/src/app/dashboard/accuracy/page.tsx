@@ -13,25 +13,53 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
+import { chartTooltipProps } from "@/components/charts/ChartTooltip";
 import { intelligenceAPI } from "@/lib/api";
+import PageLoadError from "@/components/ui/PageLoadError";
+import CountryFocusBar, { useActiveCountryCode } from "@/components/dashboard/CountryFocusBar";
+import { CountryFlag, CountryLabel } from "@/components/ui/CountryFlag";
+import { getCountryMeta } from "@/lib/countries";
 import { chartAxisLine, chartAxisTick, chartGridStroke } from "@/lib/chartTheme";
 import { sentimentTextClass } from "@/lib/financialColors";
 
+function CountryAxisTick({
+  x = 0,
+  y = 0,
+  payload,
+}: {
+  x?: number;
+  y?: number;
+  payload?: { value?: string };
+}) {
+  const code = payload?.value ?? "";
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <foreignObject x={-22} y={4} width={52} height={20}>
+        <CountryFlag code={code} size="xs" title={getCountryMeta(code).name} />
+      </foreignObject>
+    </g>
+  );
+}
+
 export default function AccuracyPage() {
+  const countryCode = useActiveCountryCode();
   const [data, setData] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError(false);
     try {
-      const { data: payload } = await intelligenceAPI.getAccuracy();
+      const { data: payload } = await intelligenceAPI.getAccuracy(countryCode);
       setData(payload);
     } catch {
       setData(null);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [countryCode]);
 
   useEffect(() => {
     void load();
@@ -45,10 +73,19 @@ export default function AccuracyPage() {
     );
   }
 
-  const metrics = data?.overall_metrics as Record<string, number> | undefined;
-  const monthly = (data?.monthly_trends as Array<Record<string, unknown>>) ?? [];
-  const rankings = (data?.country_rankings as Array<Record<string, unknown>>) ?? [];
-  const alerts = (data?.alerts as Array<Record<string, unknown>>) ?? [];
+  if (loadError || !data) {
+    return (
+      <PageLoadError
+        title="Failed to load accuracy data"
+        onRetry={() => void load()}
+      />
+    );
+  }
+
+  const metrics = data.overall_metrics as Record<string, number> | undefined;
+  const monthly = (data.monthly_trends as Array<Record<string, unknown>>) ?? [];
+  const rankings = (data.country_rankings as Array<Record<string, unknown>>) ?? [];
+  const alerts = (data.alerts as Array<Record<string, unknown>>) ?? [];
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -57,9 +94,12 @@ export default function AccuracyPage() {
           <BarChart3 className="h-6 w-6" /> Prediction Accuracy Dashboard
         </h1>
         <p className="text-sm text-[var(--text-muted)]">
-          TS-Transformer model performance — predicted vs actual values
+          TS-Transformer model performance for{" "}
+          <CountryLabel code={countryCode} />
         </p>
       </div>
+
+      <CountryFocusBar label="Accuracy focus" />
 
       {alerts.length > 0 && (
         <div className="rounded-xl border border-[var(--fin-caution)] bg-[var(--fin-caution-bg)] p-4">
@@ -72,8 +112,9 @@ export default function AccuracyPage() {
         </div>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         {[
+          ["Accuracy", metrics?.accuracy_pct != null ? `${metrics.accuracy_pct}%` : "—", "positive"],
           ["RMSE", metrics?.rmse, "info"],
           ["MAE", metrics?.mae, "info"],
           ["MAPE", metrics?.mape != null ? `${metrics.mape}%` : "—", "caution"],
@@ -99,7 +140,7 @@ export default function AccuracyPage() {
               <CartesianGrid stroke={chartGridStroke} strokeDasharray="3 3" />
               <XAxis dataKey="period" tick={chartAxisTick} axisLine={chartAxisLine} />
               <YAxis tick={chartAxisTick} axisLine={chartAxisLine} />
-              <Tooltip />
+              <Tooltip {...chartTooltipProps} />
               <Line type="monotone" dataKey="mae" stroke="var(--text-primary)" strokeWidth={2} />
             </LineChart>
           </ResponsiveContainer>
@@ -110,9 +151,14 @@ export default function AccuracyPage() {
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={rankings.slice(0, 8)}>
               <CartesianGrid stroke={chartGridStroke} strokeDasharray="3 3" />
-              <XAxis dataKey="country_code" tick={chartAxisTick} axisLine={chartAxisLine} />
+              <XAxis
+                dataKey="country_code"
+                tick={<CountryAxisTick />}
+                axisLine={chartAxisLine}
+                height={48}
+              />
               <YAxis tick={chartAxisTick} axisLine={chartAxisLine} />
-              <Tooltip />
+              <Tooltip {...chartTooltipProps} />
               <Bar dataKey="mae" fill="var(--text-muted)" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>

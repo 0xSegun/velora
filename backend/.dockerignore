@@ -4,26 +4,47 @@ venv
 __pycache__
 *.pyc
 .pytest_cache
+.mypy_cache
+.ruff_cache
+htmlcov
+.coverage
 
-# Local PostgreSQL bundle (use docker-compose db service)
+# Local PostgreSQL bundle
 postgres
 
-# Archives
+# Archives & dev-only storage
 backup_archive
 dataset_archive
+datasets_archive
 old_models
 external_storage
+archive
 
-# Logs & generated files
+# Logs & generated runtime files
 logs
-logs/archive
-generated_pdfs
-uploads
+logs/**
+generated_pdfs/**
+uploads/**
 cache
+temp
 
-# Tests & dev scripts (not needed in runtime image)
+# Dev dumps & session artifacts
+_openapi.json
+_map.json
+*.log
+backend_final.log
+
+# Tests & one-off dev scripts
 scripts/download_postgres.ps1
+scripts/patch_velora_branding_db.py
+scripts/generate_currency_catalog.py
+scripts/verify_intelligence.py
 
 # Environment
 .env
 .env.*
+
+# Git & IDE
+.git
+.vscode
+.idea

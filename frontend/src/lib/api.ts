@@ -14,6 +14,7 @@ export interface RegisterPayload {
   full_name?: string;
   fullName?: string;
   country?: string;
+  role?: "user" | "analyst";
   [key: string]: unknown;
 }
 
@@ -43,7 +44,7 @@ const mapNotification = (raw: JsonRecord): Notification => ({
 const api = axios.create({
   baseURL: API_URL,
   headers: { "Content-Type": "application/json" },
-  timeout: 30000,
+  timeout: 60000,
 });
 
 let lastNetworkToast = 0;
@@ -133,6 +134,8 @@ api.interceptors.response.use(
 export const authAPI = {
   login: (email: string, password: string) =>
     api.post("/api/auth/login", { email, password }),
+  mfaVerify: (challenge_token: string, code: string) =>
+    api.post("/api/auth/mfa-verify", { challenge_token, code }),
   register: (data: RegisterPayload) => api.post("/api/auth/register", data),
   googleLogin: (credential: string) =>
     api.post("/api/auth/google", { credential }),
@@ -167,6 +170,8 @@ export const authAPI = {
 export const usersAPI = {
   getProfile: () => api.get("/api/users/profile"),
   updateProfile: (data: JsonRecord) => api.put("/api/users/profile", data),
+  changePassword: (data: { current_password: string; new_password: string }) =>
+    api.post("/api/auth/change-password", data),
 };
 
 export const predictionsAPI = {
@@ -185,6 +190,10 @@ export interface CountryRecord {
   name: string;
   code: string;
   flag: string;
+  flag_url?: string | null;
+  region?: string | null;
+  continent?: string | null;
+  currency?: string | null;
   inflation_rate: number;
   deflation_risk: number;
   gdp: number;
@@ -208,9 +217,24 @@ export const countriesAPI = {
       total: number;
       page: number;
       per_page: number;
-    }>("/api/countries", { params: { per_page: 100, ...params } });
+    }>("/api/countries", { params: { per_page: 500, ...params } });
     return data;
   },
+  getCatalog: () =>
+    api.get<{
+      countries: Array<{
+        code: string;
+        name: string;
+        flag: string;
+        flag_url: string;
+        currency?: string;
+        currency_name?: string;
+        currency_symbol?: string;
+        continent?: string;
+        region?: string;
+      }>;
+      total: number;
+    }>("/api/countries/catalog"),
   getByCode: (code: string) => api.get<CountryRecord>(`/api/countries/${code}`),
 };
 
@@ -396,8 +420,53 @@ export interface DashboardOverview {
   max_tracked: number;
 }
 
+export interface UserInsights {
+  country_code: string;
+  country_name: string;
+  server_time?: ServerTime;
+  tracked_countries?: string[];
+  todays_summary: {
+    economic_health: string;
+    economic_health_score: number;
+    inflation_trend: string;
+    inflation_rate: number | null;
+    deflation_risk: number | null;
+    currency_strength: number | null;
+    currency_trend: string;
+    ai_summary: string;
+  };
+  cost_of_living: Record<string, string>;
+  savings_advisor: string[];
+  charts: Record<string, Array<{ date: string; label: string; value: number }>>;
+  gauges: {
+    economic_health: number;
+    forecast_confidence: number;
+    risk_level: string;
+    sentiment_score: number;
+  };
+  quick_forecasts: Record<string, string | number>;
+  recent_events: Array<{ title: string; date: string; category: string; impact: number }>;
+  recent_news: Array<JsonRecord>;
+  weekly_summary: string;
+  ai_recommendations: string[];
+}
+
 export const dashboardAPI = {
   getOverview: () => api.get<DashboardOverview>("/api/dashboard/overview"),
+  getUserInsights: (countryCode?: string) =>
+    api.get<UserInsights>("/api/dashboard/user-insights", {
+      params: countryCode ? { country_code: countryCode } : {},
+    }),
+  getBriefing: (
+    period: "morning" | "weekly" | "monthly" = "morning",
+    countryCode?: string,
+  ) =>
+    api.get("/api/dashboard/briefing", {
+      params: {
+        period,
+        ...(countryCode ? { country_code: countryCode } : {}),
+      },
+    }),
   getServerTime: () => api.get<ServerTime>("/api/dashboard/server-time"),
   getTrackedCountries: () => api.get<{ countries: string[]; max: number }>("/api/dashboard/tracked-countries"),
   updateTrackedCountries: (countries: string[]) =>
@@ -435,6 +504,14 @@ export const reportsAPI = {
   list: (params?: JsonRecord) => api.get("/api/reports", { params }),
   getById: (id: string) => api.get(`/api/reports/${id}`),
   create: (data: JsonRecord) => api.post("/api/reports", data),
+  generate: (data: {
+    country_code: string;
+    horizon_months?: number;
+    report_type?: string;
+    indicator_focus?: string;
+  }) => api.post("/api/reports/generate", data),
+  download: (id: string) =>
+    api.get(`/api/reports/${id}/download`, { responseType: "blob" }),
   sync: () => api.post("/api/reports/sync"),
 };
 
@@ -645,6 +722,410 @@ export const exchangeRatesAPI = {
   publicCurrencies: () => api.get<ExchangeRateCatalog>("/api/exchange-rates/currencies"),
 };
 
+export interface FredIndicator {
+  id: string;
+  indicator_code: string;
+  indicator_name: string;
+  category: string;
+  description: string;
+  frequency: string;
+  field_mapping: string;
+  enabled: boolean;
+  last_updated?: string | null;
+}
+
+export interface FredFeatureConfig {
+  include_lag_variables: boolean;
+  include_rolling_means: boolean;
+  include_moving_averages: boolean;
+  include_percentage_changes: boolean;
+  include_growth_rates: boolean;
+  input_sequence_length: number;
+  forecast_horizon: number;
+  normalization_method: string;
+}
+
+export interface FredConfig {
+  id: string;
+  provider_name: string;
+  api_key_masked: string;
+  api_key_set: boolean;
+  base_url: string;
+  refresh_interval: string;
+  date_range: string;
+  data_frequency: string;
+  prediction_enabled: boolean;
+  sync_enabled: boolean;
+  historical_storage_enabled: boolean;
+  is_active: boolean;
+  last_sync?: string | null;
+  last_failed_sync?: string | null;
+  next_sync?: string | null;
+  sync_status: string;
+  records_retrieved: number;
+  error_count: number;
+  success_count: number;
+  feature_config: FredFeatureConfig;
+  indicators: FredIndicator[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FredHealth {
+  provider: string;
+  status: string;
+  is_active: boolean;
+  response_time_ms?: number | null;
+  last_sync?: string | null;
+  last_failed_sync?: string | null;
+  next_sync?: string | null;
+  error_count: number;
+  success_count: number;
+  success_rate?: number | null;
+  sync_status: string;
+  records_retrieved: number;
+  indicators_enabled: number;
+  data_quality_score?: number | null;
+  model_feature_count: number;
+  using_cached_data?: boolean;
+  failover_warning?: string | null;
+}
+
+export const fredAPI = {
+  getConfig: () => api.get<FredConfig>("/api/admin/fred-config"),
+  updateConfig: (data: JsonRecord) => api.put("/api/admin/fred-config", data),
+  testConnection: (data?: { api_key?: string }) =>
+    api.post("/api/admin/fred-config/test", data ?? {}),
+  sync: () => api.post("/api/admin/fred-config/sync"),
+  enable: () => api.post("/api/admin/fred-config/enable"),
+  disable: () => api.post("/api/admin/fred-config/disable"),
+  reset: () => api.post("/api/admin/fred-config/reset"),
+  getHealth: () => api.get<FredHealth>("/api/admin/fred-config/health"),
+  getLogs: (params?: { status?: string; endpoint?: string; limit?: number }) =>
+    api.get("/api/admin/fred-config/logs", { params }),
+  getAuditLogs: (params?: { limit?: number }) =>
+    api.get("/api/admin/fred-config/audit-logs", { params }),
+  getAnalytics: () => api.get("/api/admin/fred-config/analytics"),
+  exportData: (format: string, indicatorCode?: string) =>
+    api.get("/api/admin/fred-config/export", {
+      params: { format, indicator_code: indicatorCode },
+      responseType: "blob",
+    }),
+};
+
+export interface NewsApiConfig {
+  id: string;
+  provider: string;
+  provider_name: string;
+  base_url: string;
+  api_key_set: boolean;
+  refresh_interval: string;
+  sync_enabled: boolean;
+  is_active: boolean;
+  source_config: {
+    sources?: string[];
+    queries?: string[];
+    country_codes?: string[];
+  };
+  last_sync?: string | null;
+  sync_status: string;
+  articles_retrieved: number;
+  error_count: number;
+  success_count: number;
+}
+
+export interface NewsApiHealth {
+  status: string;
+  provider: string;
+  is_active: boolean;
+  sync_status: string;
+  last_sync?: string | null;
+  articles_retrieved: number;
+  success_rate?: number | null;
+  using_cached_data: boolean;
+}
+
+export const newsAPI = {
+  getConfig: () => api.get<NewsApiConfig>("/api/admin/news-api"),
+  updateConfig: (data: JsonRecord) => api.put("/api/admin/news-api", data),
+  testConnection: (data?: { api_key?: string }) =>
+    api.post("/api/admin/news-api/test", data ?? {}),
+  sync: () => api.post("/api/admin/news-api/sync"),
+  enable: () => api.post("/api/admin/news-api/enable"),
+  disable: () => api.post("/api/admin/news-api/disable"),
+  getHealth: () => api.get<NewsApiHealth>("/api/admin/news-api/health"),
+  getLogs: (params?: { limit?: number }) =>
+    api.get("/api/admin/news-api/logs", { params }),
+};
+
+export interface ImfApiConfig {
+  id: string;
+  provider_name: string;
+  base_url: string;
+  api_key_set: boolean;
+  refresh_interval: string;
+  sync_enabled: boolean;
+  is_active: boolean;
+  source_config: {
+    country_codes?: string[];
+    indicators?: string[];
+    preferred_year?: number | null;
+  };
+  last_sync?: string | null;
+  sync_status: string;
+  countries_synced: number;
+  error_count: number;
+  success_count: number;
+}
+
+export interface ImfApiHealth {
+  status: string;
+  provider: string;
+  is_active: boolean;
+  sync_status: string;
+  last_sync?: string | null;
+  next_sync?: string | null;
+  countries_synced: number;
+  success_rate?: number | null;
+  using_cached_data: boolean;
+}
+
+export const imfAPI = {
+  getConfig: () => api.get<ImfApiConfig>("/api/admin/imf-api"),
+  updateConfig: (data: JsonRecord) => api.put("/api/admin/imf-api", data),
+  testConnection: (data?: { api_key?: string; country_code?: string }) =>
+    api.post("/api/admin/imf-api/test", data ?? {}),
+  sync: () => api.post("/api/admin/imf-api/sync"),
+  enable: () => api.post("/api/admin/imf-api/enable"),
+  disable: () => api.post("/api/admin/imf-api/disable"),
+  getHealth: () => api.get<ImfApiHealth>("/api/admin/imf-api/health"),
+  getLogs: (params?: { limit?: number }) =>
+    api.get("/api/admin/imf-api/logs", { params }),
+};
+
+export interface WikipediaApiConfig {
+  id: string;
+  provider_name: string;
+  base_url: string;
+  user_agent: string;
+  refresh_interval: string;
+  sync_enabled: boolean;
+  is_active: boolean;
+  source_config: {
+    country_codes?: string[];
+    economy_title_template?: string;
+    central_bank_title_template?: string;
+    title_overrides?: Record<string, Record<string, string>>;
+  };
+  last_sync?: string | null;
+  sync_status: string;
+  countries_synced: number;
+  error_count: number;
+  success_count: number;
+}
+
+export interface WikipediaApiHealth {
+  status: string;
+  provider: string;
+  is_active: boolean;
+  sync_status: string;
+  last_sync?: string | null;
+  next_sync?: string | null;
+  countries_synced: number;
+  success_rate?: number | null;
+  using_cached_data: boolean;
+}
+
+type CountryMacroSnapshot = {
+  country_code: string;
+  country_name: string;
+  data_year?: number | null;
+  inflation_pct?: number | null;
+  gdp_growth_pct?: number | null;
+  gdp_usd_billions?: number | null;
+  government_debt_pct_gdp?: number | null;
+  unemployment_pct?: number | null;
+  current_account_pct_gdp?: number | null;
+  source: string;
+  cached: boolean;
+  retrieved_at?: string | null;
+};
+
+export interface CountryContextResponse {
+  country_code: string;
+  country_name: string;
+  imf?: CountryMacroSnapshot | null;
+  world_bank?: CountryMacroSnapshot | null;
+  trading_economics?: CountryMacroSnapshot | null;
+  wikipedia?: {
+    country_code: string;
+    country_name: string;
+    economy_title?: string | null;
+    economy_summary?: string | null;
+    economy_url?: string | null;
+    central_bank_title?: string | null;
+    central_bank_summary?: string | null;
+    central_bank_url?: string | null;
+    source: string;
+    cached: boolean;
+    fetched_at?: string | null;
+  } | null;
+}
+
+export const wikipediaAPI = {
+  getConfig: () => api.get<WikipediaApiConfig>("/api/admin/wikipedia-api"),
+  updateConfig: (data: JsonRecord) => api.put("/api/admin/wikipedia-api", data),
+  testConnection: (data?: { country_code?: string }) =>
+    api.post("/api/admin/wikipedia-api/test", data ?? {}),
+  sync: () => api.post("/api/admin/wikipedia-api/sync"),
+  enable: () => api.post("/api/admin/wikipedia-api/enable"),
+  disable: () => api.post("/api/admin/wikipedia-api/disable"),
+  getHealth: () => api.get<WikipediaApiHealth>("/api/admin/wikipedia-api/health"),
+};
+
+export interface WorldBankApiConfig {
+  id: string;
+  provider_name: string;
+  base_url: string;
+  api_key_set: boolean;
+  refresh_interval: string;
+  sync_enabled: boolean;
+  is_active: boolean;
+  source_config: {
+    country_codes?: string[];
+    indicators?: string[];
+    date_range?: string;
+    preferred_year?: number | null;
+  };
+  last_sync?: string | null;
+  sync_status: string;
+  countries_synced: number;
+  error_count: number;
+  success_count: number;
+}
+
+export interface WorldBankApiHealth {
+  status: string;
+  provider: string;
+  is_active: boolean;
+  sync_status: string;
+  last_sync?: string | null;
+  next_sync?: string | null;
+  countries_synced: number;
+  success_rate?: number | null;
+  using_cached_data: boolean;
+}
+
+export const worldBankAPI = {
+  getConfig: () => api.get<WorldBankApiConfig>("/api/admin/world-bank-api"),
+  updateConfig: (data: JsonRecord) => api.put("/api/admin/world-bank-api", data),
+  testConnection: (data?: { country_code?: string }) =>
+    api.post("/api/admin/world-bank-api/test", data ?? {}),
+  sync: () => api.post("/api/admin/world-bank-api/sync"),
+  enable: () => api.post("/api/admin/world-bank-api/enable"),
+  disable: () => api.post("/api/admin/world-bank-api/disable"),
+  getHealth: () => api.get<WorldBankApiHealth>("/api/admin/world-bank-api/health"),
+  getLogs: (params?: { limit?: number }) =>
+    api.get("/api/admin/world-bank-api/logs", { params }),
+};
+
+export interface TradingEconomicsApiConfig {
+  id: string;
+  provider_name: string;
+  base_url: string;
+  api_key_set: boolean;
+  refresh_interval: string;
+  sync_enabled: boolean;
+  is_active: boolean;
+  source_config: {
+    country_codes?: string[];
+    indicators?: string[];
+    preferred_year?: number | null;
+  };
+  last_sync?: string | null;
+  sync_status: string;
+  countries_synced: number;
+  error_count: number;
+  success_count: number;
+}
+
+export interface TradingEconomicsApiHealth {
+  status: string;
+  provider: string;
+  is_active: boolean;
+  sync_status: string;
+  last_sync?: string | null;
+  next_sync?: string | null;
+  countries_synced: number;
+  success_rate?: number | null;
+  using_cached_data: boolean;
+}
+
+export const tradingEconomicsAPI = {
+  getConfig: () => api.get<TradingEconomicsApiConfig>("/api/admin/trading-economics-api"),
+  updateConfig: (data: JsonRecord) => api.put("/api/admin/trading-economics-api", data),
+  testConnection: (data?: { api_key?: string; country_code?: string }) =>
+    api.post("/api/admin/trading-economics-api/test", data ?? {}),
+  sync: () => api.post("/api/admin/trading-economics-api/sync"),
+  enable: () => api.post("/api/admin/trading-economics-api/enable"),
+  disable: () => api.post("/api/admin/trading-economics-api/disable"),
+  getHealth: () => api.get<TradingEconomicsApiHealth>("/api/admin/trading-economics-api/health"),
+  getLogs: (params?: { limit?: number }) =>
+    api.get("/api/admin/trading-economics-api/logs", { params }),
+};
+
+export interface PlatformIntegration {
+  id: string;
+  name: string;
+  provider: string;
+  category: string;
+  description: string;
+  admin_path: string;
+  is_active: boolean;
+  health_status: string;
+  sync_status: string;
+  last_sync: string | null;
+  api_key_set: boolean;
+  metrics: Record<string, number | null | undefined>;
+  supports_sync: boolean;
+  supports_background_sync: boolean;
+}
+
+export const integrationsAPI = {
+  list: () =>
+    api.get<{
+      total: number;
+      active: number;
+      healthy: number;
+      warning: number;
+      offline: number;
+      integrations: PlatformIntegration[];
+    }>("/api/admin/integrations"),
+  sync: (id: string) => api.post(`/api/admin/integrations/${id}/sync`),
+};
+
+export const securityAPI = {
+  getOverview: () => api.get("/api/admin/security/overview"),
+  getLoginHistory: () => api.get("/api/admin/security/login-history"),
+  getSessions: () =>
+    api.get("/api/admin/security/sessions", {
+      headers: { "X-Refresh-Token": getBrowserStorageItem("refresh_token") ?? "" },
+    }),
+  revokeSession: (id: string) => api.delete(`/api/admin/security/sessions/${id}`),
+  revokeOtherSessions: () =>
+    api.post(
+      "/api/admin/security/sessions/revoke-others",
+      {},
+      { headers: { "X-Refresh-Token": getBrowserStorageItem("refresh_token") ?? "" } },
+    ),
+  setupMfa: () => api.post("/api/admin/security/mfa/setup"),
+  enableMfa: (code: string) => api.post("/api/admin/security/mfa/enable", { code }),
+  disableMfa: (password: string, code: string) =>
+    api.post("/api/admin/security/mfa/disable", { password, code }),
+  changePassword: (current_password: string, new_password: string) =>
+    api.post("/api/admin/security/change-password", { current_password, new_password }),
+};
+
 export const apiConfigsAPI = {
   list: () => api.get<ApiConfigRecord[]>("/api/admin/api-configs"),
   create: (data: JsonRecord) => api.post("/api/admin/api-configs", data),
@@ -684,6 +1165,18 @@ export const intelligenceAPI = {
   getCountryRisk: (code: string) => api.get(`/api/intelligence/risk/${code}`),
   getEconomicHealth: (code: string) => api.get(`/api/intelligence/health/${code}`),
   getNews: (params?: JsonRecord) => api.get("/api/intelligence/news", { params }),
+  getNewsStatus: () =>
+    api.get<{
+      live_feed_enabled: boolean;
+      provider: string;
+      status: string;
+      last_sync?: string | null;
+      articles_retrieved: number;
+      using_cached_data: boolean;
+    }>("/api/intelligence/news/status"),
+  getCountryContext: (countryCode: string) =>
+    api.get<CountryContextResponse>(`/api/intelligence/country-context/${countryCode}`),
+  getNewsArticle: (id: string) => api.get(`/api/intelligence/news/${id}`),
   getSentiment: (code: string) => api.get(`/api/intelligence/sentiment/${code}`),
   getAdvancedIndicators: (code: string) =>
     api.get(`/api/intelligence/indicators/${code}`),
@@ -692,6 +1185,50 @@ export const intelligenceAPI = {
   getResearch: (id: string) => api.get(`/api/intelligence/research/${id}`),
   exportPredictions: (countryCode: string) =>
     api.get(`/api/intelligence/export/predictions/${countryCode}`, { responseType: "blob" }),
+  getHub: (countryCode: string) =>
+    api.get(`/api/intelligence/hub/${countryCode}`),
+  getReliability: (countryCode: string, confidence = 0.75) =>
+    api.get(`/api/intelligence/reliability/${countryCode}`, { params: { confidence } }),
+  getForecastChanges: (countryCode: string) =>
+    api.get(`/api/intelligence/changes/${countryCode}`),
+  getRegime: (countryCode: string) =>
+    api.get(`/api/intelligence/regime/${countryCode}`),
+  getAnomalies: (countryCode: string) =>
+    api.get(`/api/intelligence/anomalies/${countryCode}`),
+  getEarlyWarnings: (countryCode?: string) =>
+    api.get("/api/intelligence/warnings", { params: countryCode ? { country_code: countryCode } : {} }),
+  getSimilarCountries: (countryCode: string, limit = 5) =>
+    api.get(`/api/intelligence/similarity/${countryCode}`, { params: { limit } }),
+  getCpiSelection: (countryCode: string) =>
+    api.get(`/api/intelligence/cpi-selection/${countryCode}`),
+  getDataSelection: (countryCode: string) =>
+    api.get(`/api/intelligence/data-selection/${countryCode}`),
+  getInflationMap: (params?: JsonRecord) =>
+    api.get("/api/intelligence/inflation-map", { params }),
+  getBacktest: (countryCode?: string) =>
+    api.get("/api/intelligence/backtest", { params: countryCode ? { country_code: countryCode } : {} }),
+  getDataLineage: (predictionId: string) =>
+    api.get(`/api/intelligence/lineage/${predictionId}`),
+  getForecastArchive: (countryCode: string, limit = 20) =>
+    api.get(`/api/intelligence/archive/${countryCode}`, { params: { limit } }),
+  getRecommendations: (countryCode: string, params?: JsonRecord) =>
+    api.get(`/api/intelligence/recommendations/${countryCode}`, { params }),
+  getResilience: (countryCode: string) =>
+    api.get(`/api/intelligence/resilience/${countryCode}`),
+  getPageInsights: (countryCode: string, page = "overview") =>
+    api.get(`/api/intelligence/insights/${countryCode}`, { params: { page } }),
+  getNarrative: (countryCode: string) =>
+    api.get(`/api/intelligence/narrative/${countryCode}`),
+  naturalLanguageQuery: (data: JsonRecord) =>
+    api.post("/api/intelligence/nlq", data),
+  getExplainabilityPdf: (predictionId: string) =>
+    api.get(`/api/intelligence/explainability-pdf/${predictionId}`, { responseType: "blob" }),
+  getModelVersions: () => api.get("/api/intelligence/models/versions"),
+  rollbackModel: (modelId: string) =>
+    api.post(`/api/intelligence/models/rollback/${modelId}`),
+  listExperiments: () => api.get("/api/intelligence/experiments"),
+  compareExperiments: (experimentIds: string[]) =>
+    api.post("/api/intelligence/experiments/compare", { experiment_ids: experimentIds }),
 };
 
 export const adminIntelligenceAPI = {

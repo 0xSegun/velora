@@ -13,6 +13,7 @@ from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
+from app.models.country import Country
 from app.models.prediction import Prediction
 from app.models.economic_data import EconomicData
 from app.models.intelligence import MultiHorizonForecast
@@ -65,6 +66,8 @@ def _build_enriched_metadata(
     forecast_horizon: int,
     model_version: str,
     explainability: dict,
+    cpi_selection: dict | None = None,
+    data_selection: dict | None = None,
 ) -> dict:
     factors = [f["feature"] for f in explainability.get("feature_importance", [])[:5]]
     if not factors:
@@ -100,10 +103,28 @@ def _build_enriched_metadata(
             "expected": bands.get("expected", inflation_rate),
             "worst_case": bands.get("worst_case"),
         },
-        "data_sources_used": ["FRED", "National Statistics Agencies", "Velora TS-Transformer"],
+        "data_sources_used": _data_sources_used(data_selection, cpi_selection),
+        "data_selection": data_selection or {},
+        "cpi_selection": cpi_selection or {},
         "deflation_probability_pct": round(deflation_prob * 100, 2),
         "economic_interpretation": explainability.get("economic_interpretation", ""),
     }
+
+
+def _data_sources_used(data_selection: dict | None, cpi_selection: dict | None = None) -> list[str]:
+    sources: list[str] = []
+    if data_selection:
+        sources.extend(data_selection.get("api_sources_used") or data_selection.get("sources_used") or [])
+    elif cpi_selection and cpi_selection.get("source_label"):
+        sources.append(cpi_selection["source_label"])
+    sources.append("Velora TS-Transformer")
+    seen: set[str] = set()
+    unique: list[str] = []
+    for s in sources:
+        if s and s not in seen:
+            seen.add(s)
+            unique.append(s)
+    return unique
 
 
 def _prediction_to_response(prediction: Prediction) -> PredictionResponse:
@@ -139,14 +160,50 @@ def _prediction_to_response(prediction: Prediction) -> PredictionResponse:
     )
 
 
+_ECON_INPUT_FIELDS = (
+    "cpi", "gdp", "gdp_growth", "interest_rate", "exchange_rate",
+    "oil_price", "gov_spending", "employment_rate", "unemployment_rate",
+    "money_supply", "trade_balance", "inflation_rate", "core_inflation",
+    "producer_price_index", "consumer_confidence_index",
+    "purchasing_managers_index", "public_debt_ratio", "commodity_price_index",
+    "housing_price_index", "retail_sales", "foreign_reserves", "fiscal_deficit",
+)
+
+
+async def _resolve_country_input_data(
+    db: AsyncSession,
+    country_code: str,
+    provided: dict,
+) -> dict:
+    """Resolve every indicator from its single highest-accuracy source (no merging)."""
+    from app.services.indicator_selection_service import (
+        cpi_selection_from_data_selection,
+        select_best_indicators,
+    )
+
+    code = country_code.upper()
+    data_selection = await select_best_indicators(db, code)
+    cpi_selection = cpi_selection_from_data_selection(data_selection)
+
+    base: dict = {**data_selection.get("values", {})}
+    base["_data_selection"] = data_selection
+    base["_cpi_selection"] = cpi_selection
+
+    merged = {**base, **{k: v for k, v in provided.items() if v is not None}}
+    merged["_data_selection"] = data_selection
+    merged["_cpi_selection"] = cpi_selection
+    return merged
+
+
 async def run_prediction(
     db: AsyncSession,
     user: User,
     payload: PredictionRequest,
 ) -> PredictionResponse:
     """Execute TS-Transformer inflation prediction and persist results."""
-    input_dict = payload.input_data.model_dump()
     country_code = payload.country_code.upper()
+    provided = payload.input_data.model_dump(exclude_none=True)
+    input_dict = await _resolve_country_input_data(db, country_code, provided)
 
     events = await get_events_for_prediction(db, country_code)
     sentiment = await get_sentiment(db, country_code)
@@ -169,12 +226,29 @@ async def run_prediction(
     explainability = result["explainability"]
     explainability["confidence_bands"] = result["confidence_bands"]
 
+    try:
+        from app.services.fred_service import build_fred_explainability, get_latest_values
+
+        fred_vals = await get_latest_values(db)
+        if fred_vals:
+            explainability.update(
+                build_fred_explainability(
+                    fred_vals,
+                    explainability.get("feature_importance", []),
+                )
+            )
+    except Exception:
+        logger.debug("FRED explainability enrichment skipped", exc_info=True)
+
     forecast = [
         ForecastPoint(**fp) for fp in result["forecast_points"]
     ]
 
     now = datetime.now(timezone.utc)
     target_date = now + timedelta(days=30 * payload.forecast_horizon)
+
+    data_selection = input_dict.get("_data_selection") or {}
+    cpi_selection = input_dict.get("_cpi_selection") or {}
 
     metadata = _build_enriched_metadata(
         inflation_rate=inflation_rate,
@@ -186,6 +260,8 @@ async def run_prediction(
         forecast_horizon=payload.forecast_horizon,
         model_version=model_version,
         explainability=explainability,
+        cpi_selection=cpi_selection,
+        data_selection=data_selection,
     )
     metadata["explainability"] = explainability
 
@@ -213,6 +289,12 @@ async def run_prediction(
     db.add(prediction)
     await db.flush()
     await db.refresh(prediction)
+
+    try:
+        from app.services.intelligence_platform_service import enrich_prediction
+        await enrich_prediction(db, prediction)
+    except Exception:
+        logger.debug("Intelligence enrichment skipped", exc_info=True)
 
     # Persist multi-horizon records
     for h_str, h_data in result["multi_horizon"].items():
@@ -311,44 +393,12 @@ async def compare_countries(
     user: User,
     payload: PredictionCompareRequest,
 ) -> PredictionCompareResponse:
-    from app.services.exchange_rate_service import get_cached_rate_for_country
-
     comparisons: dict[str, PredictionResponse] = {}
 
     for code in payload.country_codes:
-        result = await db.execute(
-            select(EconomicData)
-            .where(EconomicData.country_code == code)
-            .order_by(desc(EconomicData.data_date), desc(EconomicData.created_at))
-            .limit(1)
-        )
-        econ = result.scalar_one_or_none()
-        live_fx = await get_cached_rate_for_country(db, code.upper())
-
-        input_data = {}
-        if econ:
-            input_data = {
-                k: getattr(econ, k)
-                for k in (
-                    "cpi", "gdp", "gdp_growth", "interest_rate", "exchange_rate",
-                    "oil_price", "gov_spending", "employment_rate", "unemployment_rate",
-                    "money_supply", "trade_balance", "core_inflation", "producer_price_index",
-                    "consumer_confidence_index", "purchasing_managers_index",
-                    "public_debt_ratio", "commodity_price_index", "housing_price_index",
-                    "retail_sales", "foreign_reserves", "fiscal_deficit",
-                )
-                if getattr(econ, k, None) is not None
-            }
-            if live_fx is not None:
-                input_data["exchange_rate"] = live_fx
-        elif live_fx is not None:
-            input_data = {"exchange_rate": live_fx}
-
-        from app.schemas.prediction import PredictionInputData, PredictionRequest as PR
+        from app.schemas.prediction import PredictionRequest as PR
         req = PR(
             country_code=code,
-            input_data=PredictionInputData(**{k: v for k, v in input_data.items()
-                                              if k in PredictionInputData.model_fields}),
             forecast_horizon=payload.forecast_horizon,
         )
         pred = await run_prediction(db, user, req)

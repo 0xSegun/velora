@@ -4,15 +4,18 @@ import { useCallback, useEffect, useState } from "react";
 import { Target, Loader2, RefreshCw } from "lucide-react";
 import { adminIntelligenceAPI } from "@/lib/api";
 import { toast } from "@/lib/feedback";
+import PageLoadError from "@/components/ui/PageLoadError";
 
 export default function AdminIntelligencePage() {
   const [settings, setSettings] = useState<Record<string, unknown>>({});
   const [retraining, setRetraining] = useState<Array<Record<string, unknown>>>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError(false);
     try {
       const [s, r] = await Promise.all([
         adminIntelligenceAPI.getSettings(),
@@ -21,6 +24,7 @@ export default function AdminIntelligencePage() {
       setSettings(s.data);
       setRetraining(Array.isArray(r.data) ? r.data : []);
     } catch {
+      setLoadError(true);
       toast.error("Failed to load intelligence settings.");
     } finally {
       setLoading(false);
@@ -49,6 +53,15 @@ export default function AdminIntelligencePage() {
       <div className="flex min-h-[40vh] items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-[var(--text-muted)]" />
       </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <PageLoadError
+        title="Failed to load intelligence settings"
+        onRetry={() => void load()}
+      />
     );
   }
 
@@ -149,7 +162,7 @@ export default function AdminIntelligencePage() {
         <button
           onClick={() => void save()}
           disabled={saving}
-          className="rounded-xl bg-[var(--text-primary)] px-4 py-2 text-sm text-[var(--bg-primary)]"
+          className="rounded-xl bg-[var(--accent)] px-4 py-2 text-sm text-white"
         >
           {saving ? "Saving…" : "Save Settings"}
         </button>

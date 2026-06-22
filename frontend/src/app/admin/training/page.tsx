@@ -48,6 +48,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from 'recharts';
+import { ChartTooltipContent } from '@/components/charts/ChartTooltip';
 import * as XLSX from 'xlsx';
 import {
   useTrainingStore,
@@ -146,24 +147,6 @@ function MiniSparkline({ values }: { values: number[] }) {
     <svg width={w} height={h} className="inline-block">
       <path d={path} fill="none" stroke="#FFFFFF" strokeWidth="1.5" />
     </svg>
-  );
-}
-
-// ============================================================
-// Custom Tooltip for Recharts
-// ============================================================
-
-function ChartTooltip({ active, payload, label }: any) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="rounded-lg border border-[var(--border-hover)] bg-[var(--bg-secondary)]/90 px-3 py-2 text-xs backdrop-blur-md">
-      <p className="mb-1 font-medium text-[var(--text-secondary)]">Epoch {label}</p>
-      {payload.map((entry: any, i: number) => (
-        <p key={i} style={{ color: entry.color }} className="font-mono">
-          {entry.name}: {Number(entry.value).toFixed(4)}
-        </p>
-      ))}
-    </div>
   );
 }
 
@@ -352,7 +335,7 @@ export default function TrainingCenterPage() {
       numeric: 'bg-blue-500/15 text-blue-400 border-blue-500/20',
       date: 'bg-amber-500/15 text-amber-400 border-amber-500/20',
       categorical: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20',
-      unknown: 'bg-slate-500/15 text-[var(--text-muted)] border-slate-500/20',
+      unknown: 'bg-[var(--status-bg)] text-[var(--text-muted)] border-[var(--status-border)]',
     };
     return (
       <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${colors[type] || colors.unknown}`}>
@@ -572,7 +555,7 @@ export default function TrainingCenterPage() {
               disabled={!accessible}
               className={`relative flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-all ${
                 isActive
-                  ? 'bg-[var(--text-primary)] text-[var(--bg-primary)] shadow-lg shadow-black/20'
+                  ? 'bg-[var(--accent)] text-white shadow-lg shadow-black/20'
                   : accessible
                     ? 'text-[var(--text-muted)] hover:bg-[var(--glass-bg-hover)] hover:text-[var(--text-primary)]'
                     : 'cursor-not-allowed text-[var(--text-faint)] opacity-50'
@@ -761,7 +744,7 @@ export default function TrainingCenterPage() {
                 <div className="flex justify-end">
                   <button
                     onClick={() => setActiveTab('features')}
-                    className="inline-flex items-center gap-2 rounded-xl bg-[var(--text-primary)] px-6 py-2.5 text-sm font-semibold text-[var(--bg-primary)] shadow-lg shadow-black/20 transition hover:shadow-black/30"
+                    className="inline-flex items-center gap-2 rounded-xl bg-[var(--accent)] px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-black/20 transition hover:shadow-black/30"
                   >
                     Continue to Feature Selection
                     <Columns3 size={16} />
@@ -886,7 +869,7 @@ export default function TrainingCenterPage() {
                       <div className="flex items-center gap-2">
                         <div className={`flex h-5 w-5 items-center justify-center rounded border transition ${
                           isSelected
-                            ? 'border-[var(--text-primary)] bg-[var(--text-primary)]'
+                            ? 'border-[var(--accent)] bg-[var(--accent)]'
                             : 'border-[var(--border-hover)] bg-[var(--glass-bg)]'
                         }`}>
                           {isSelected && <Check size={12} className="text-[var(--bg-primary)]" />}
@@ -927,7 +910,7 @@ export default function TrainingCenterPage() {
               <button
                 onClick={() => setActiveTab('config')}
                 disabled={selectedFeatures.length === 0 || !targetColumn}
-                className="inline-flex items-center gap-2 rounded-xl bg-[var(--text-primary)] px-6 py-2.5 text-sm font-semibold text-[var(--bg-primary)] shadow-lg shadow-black/20 transition hover:shadow-black/30 disabled:opacity-50"
+                className="inline-flex items-center gap-2 rounded-xl bg-[var(--accent)] px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-black/20 transition hover:shadow-black/30 disabled:opacity-50"
               >
                 Continue to Configuration
                 <Settings2 size={16} />
@@ -960,7 +943,7 @@ export default function TrainingCenterPage() {
                         max={120}
                         value={activeConfig.sequenceLength}
                         onChange={(e: any) => updateConfig(activeConfig.id, { sequenceLength: Number(e.target.value) })}
-                        className="w-full accent-neutral-400"
+                        className="w-full accent-[var(--accent)]"
                       />
                       <div className="mt-1 flex justify-between text-[10px] text-[var(--text-faint)]">
                         <span>6</span><span>120</span>
@@ -979,7 +962,7 @@ export default function TrainingCenterPage() {
                         max={24}
                         value={activeConfig.predictionHorizon}
                         onChange={(e: any) => updateConfig(activeConfig.id, { predictionHorizon: Number(e.target.value) })}
-                        className="w-full accent-neutral-400"
+                        className="w-full accent-[var(--accent)]"
                       />
                       <div className="mt-1 flex justify-between text-[10px] text-[var(--text-faint)]">
                         <span>1</span><span>24</span>
@@ -1033,7 +1016,7 @@ export default function TrainingCenterPage() {
                         max={500}
                         value={activeConfig.epochs}
                         onChange={(e: any) => updateConfig(activeConfig.id, { epochs: Number(e.target.value) })}
-                        className="w-full accent-neutral-400"
+                        className="w-full accent-[var(--accent)]"
                       />
                       <div className="mt-1 flex justify-between text-[10px] text-[var(--text-faint)]">
                         <span>10</span><span>500</span>
@@ -1090,7 +1073,7 @@ export default function TrainingCenterPage() {
                         max={50}
                         value={Math.round(activeConfig.dropoutRate * 100)}
                         onChange={(e: any) => updateConfig(activeConfig.id, { dropoutRate: Number(e.target.value) / 100 })}
-                        className="w-full accent-neutral-400"
+                        className="w-full accent-[var(--accent)]"
                       />
                       <div className="mt-1 flex justify-between text-[10px] text-[var(--text-faint)]">
                         <span>0.0</span><span>0.5</span>
@@ -1128,7 +1111,7 @@ export default function TrainingCenterPage() {
                         max={90}
                         value={activeConfig.trainTestSplit}
                         onChange={(e: any) => updateConfig(activeConfig.id, { trainTestSplit: Number(e.target.value) })}
-                        className="w-full accent-neutral-400"
+                        className="w-full accent-[var(--accent)]"
                       />
                       <div className="mt-1 flex justify-between text-[10px] text-[var(--text-faint)]">
                         <span>60%</span><span>90%</span>
@@ -1216,11 +1199,11 @@ export default function TrainingCenterPage() {
                   <h3 className="mb-3 text-sm font-semibold text-[var(--text-primary)]">Data Split</h3>
                   <div className="flex h-4 overflow-hidden rounded-full">
                     <div
-                      className="bg-gradient-to-r from-neutral-600 to-neutral-800 transition-all"
+                      className="bg-gradient-to-r from-[var(--accent)] to-[#0052cc] transition-all"
                       style={{ width: `${activeConfig.trainTestSplit}%` }}
                     />
                     <div
-                      className="bg-slate-700 transition-all"
+                      className="bg-[var(--text-faint)] transition-all"
                       style={{ width: `${100 - activeConfig.trainTestSplit}%` }}
                     />
                   </div>
@@ -1236,7 +1219,7 @@ export default function TrainingCenterPage() {
             <div className="flex justify-end">
               <button
                 onClick={() => setActiveTab('training')}
-                className="inline-flex items-center gap-2 rounded-xl bg-[var(--text-primary)] px-6 py-2.5 text-sm font-semibold text-[var(--bg-primary)] shadow-lg shadow-black/20 transition hover:shadow-black/30"
+                className="inline-flex items-center gap-2 rounded-xl bg-[var(--accent)] px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-black/20 transition hover:shadow-black/30"
               >
                 Continue to Training
                 <Activity size={16} />
@@ -1256,7 +1239,7 @@ export default function TrainingCenterPage() {
                 <button
                   onClick={startTraining}
                   disabled={!activeDataset || selectedFeatures.length === 0}
-                  className="inline-flex items-center gap-2 rounded-xl bg-[var(--text-primary)] px-6 py-2.5 text-sm font-semibold text-[var(--bg-primary)] shadow-lg shadow-black/20 transition hover:shadow-black/30 disabled:opacity-50"
+                  className="inline-flex items-center gap-2 rounded-xl bg-[var(--accent)] px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-black/20 transition hover:shadow-black/30 disabled:opacity-50"
                 >
                   <Play size={16} />
                   Start Training
@@ -1301,7 +1284,7 @@ export default function TrainingCenterPage() {
                     className={`h-full rounded-full ${
                       trainingComplete
                         ? 'bg-gradient-to-r from-emerald-500 to-teal-500'
-                        : 'bg-gradient-to-r from-neutral-200 dark:from-neutral-700 to-neutral-400 dark:to-neutral-500'
+                        : 'bg-gradient-to-r from-[var(--accent)] to-[#3b82f6]'
                     }`}
                     animate={{ width: `${Math.min((currentEpoch / activeConfig.epochs) * 100, 100)}%` }}
                     transition={{ duration: 0.3 }}
@@ -1387,7 +1370,14 @@ export default function TrainingCenterPage() {
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
                       <XAxis dataKey="epoch" stroke="#475569" tick={{ fontSize: 10 }} />
                       <YAxis stroke="#475569" tick={{ fontSize: 10 }} />
-                      <Tooltip content={<ChartTooltip />} />
+                      <Tooltip
+                      content={
+                        <ChartTooltipContent
+                          labelFormatter={(label) => `Epoch ${label}`}
+                          valueFormatter={(value) => Number(value).toFixed(4)}
+                        />
+                      }
+                    />
                       <Legend
                         wrapperStyle={{ fontSize: '11px', color: '#94a3b8' }}
                       />
@@ -1425,7 +1415,14 @@ export default function TrainingCenterPage() {
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
                       <XAxis dataKey="epoch" stroke="#475569" tick={{ fontSize: 10 }} />
                       <YAxis stroke="#475569" tick={{ fontSize: 10 }} domain={[50, 100]} />
-                      <Tooltip content={<ChartTooltip />} />
+                      <Tooltip
+                      content={
+                        <ChartTooltipContent
+                          labelFormatter={(label) => `Epoch ${label}`}
+                          valueFormatter={(value) => Number(value).toFixed(4)}
+                        />
+                      }
+                    />
                       <Area
                         type="monotone"
                         dataKey="accuracy"
@@ -1538,7 +1535,14 @@ export default function TrainingCenterPage() {
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
                     <XAxis dataKey="index" stroke="#475569" tick={{ fontSize: 10 }} />
                     <YAxis stroke="#475569" tick={{ fontSize: 10 }} />
-                    <Tooltip content={<ChartTooltip />} />
+                    <Tooltip
+                      content={
+                        <ChartTooltipContent
+                          labelFormatter={(label) => `Epoch ${label}`}
+                          valueFormatter={(value) => Number(value).toFixed(4)}
+                        />
+                      }
+                    />
                     <Legend wrapperStyle={{ fontSize: '11px', color: '#94a3b8' }} />
                     <Line
                       type="monotone"
@@ -1569,7 +1573,14 @@ export default function TrainingCenterPage() {
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
                     <XAxis dataKey="bin" stroke="#475569" tick={{ fontSize: 10 }} />
                     <YAxis stroke="#475569" tick={{ fontSize: 10 }} />
-                    <Tooltip content={<ChartTooltip />} />
+                    <Tooltip
+                      content={
+                        <ChartTooltipContent
+                          labelFormatter={(label) => `Epoch ${label}`}
+                          valueFormatter={(value) => Number(value).toFixed(4)}
+                        />
+                      }
+                    />
                     <Bar
                       dataKey="count"
                       name="Count"

@@ -1,0 +1,15 @@
+{
+  "window_size": 12,
+  "forecast_horizon": 1,
+  "feature_columns": [
+    "cpi",
+    "gdp_growth",
+    "interest_rate",
+    "exchange_rate",
+    "oil_price",
+    "gov_spending",
+    "employment_rate",
+    "money_supply",
+    "inflation_rate"
+  ]
+}

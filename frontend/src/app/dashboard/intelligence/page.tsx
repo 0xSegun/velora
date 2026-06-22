@@ -22,17 +22,17 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
+import { chartTooltipProps } from "@/components/charts/ChartTooltip";
 import { intelligenceAPI } from "@/lib/api";
-import { useAuthStore } from "@/store/authStore";
 import { sentimentTextClass } from "@/lib/financialColors";
 import { chartAxisLine, chartAxisTick, chartGridStroke } from "@/lib/chartTheme";
+import CountryFocusBar, { useActiveCountryCode } from "@/components/dashboard/CountryFocusBar";
 import { CountryLabel } from "@/components/ui/CountryFlag";
 
 type Tab = "overview" | "events" | "news" | "risk" | "indicators";
 
 export default function IntelligencePage() {
-  const user = useAuthStore((s) => s.user);
-  const countryCode = (user?.country as string) || "NG";
+  const countryCode = useActiveCountryCode();
   const [tab, setTab] = useState<Tab>("overview");
   const [loading, setLoading] = useState(true);
   const [health, setHealth] = useState<Record<string, unknown> | null>(null);
@@ -110,6 +110,8 @@ export default function IntelligencePage() {
         </p>
       </div>
 
+      <CountryFocusBar label="Analysis focus" />
+
       <div className="flex flex-wrap gap-2">
         {tabs.map((t) => (
           <button
@@ -171,7 +173,7 @@ export default function IntelligencePage() {
                   <CartesianGrid stroke={chartGridStroke} strokeDasharray="3 3" />
                   <XAxis dataKey="label" tick={chartAxisTick} axisLine={chartAxisLine} />
                   <YAxis tick={chartAxisTick} axisLine={chartAxisLine} unit="%" />
-                  <Tooltip />
+                  <Tooltip {...chartTooltipProps} />
                   <Legend />
                   <Line type="monotone" dataKey="best" stroke="var(--fin-positive)" name="Best Case" dot={false} />
                   <Line type="monotone" dataKey="expected" stroke="var(--text-primary)" name="Expected" strokeWidth={2} />
@@ -231,8 +233,13 @@ export default function IntelligencePage() {
               className="glass-card rounded-xl hover:transform-none p-4"
             >
               <p className="font-medium text-[var(--text-primary)]">{String(n.title)}</p>
-              <p className="mt-1 text-xs text-[var(--text-muted)]">
-                {String(n.source)} · {String(n.category)}
+              <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[var(--text-muted)]">
+                {n.country_code ? (
+                  <CountryLabel code={String(n.country_code)} flagSize="xs" />
+                ) : null}
+                <span>
+                  {String(n.source)} · {String(n.category)}
+                </span>
               </p>
               <p className="mt-2 text-sm text-[var(--text-secondary)]">{String(n.summary)}</p>
             </div>

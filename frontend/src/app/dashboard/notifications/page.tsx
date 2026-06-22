@@ -130,7 +130,7 @@ export default function NotificationsPage() {
         <button
           onClick={handleMarkAllAsRead}
           disabled={unread === 0}
-          className="inline-flex items-center gap-2 rounded-xl border border-[var(--border-primary)] bg-[var(--text-primary)] px-4 py-2 text-sm font-medium text-[var(--bg-primary)] disabled:cursor-not-allowed disabled:opacity-40"
+          className="inline-flex items-center gap-2 rounded-xl border border-[var(--border-primary)] bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-40"
         >
           <CheckCheck size={16} /> Mark all read
         </button>
@@ -157,7 +157,7 @@ export default function NotificationsPage() {
             onClick={() => setFilter(cat)}
             className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium transition-all ${
               filter === cat
-                ? 'bg-[var(--text-primary)] text-[var(--bg-primary)]'
+                ? 'bg-[var(--accent)] text-white'
                 : 'bg-[var(--accent-faint)] text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
             }`}
           >
@@ -183,7 +183,7 @@ export default function NotificationsPage() {
                     {typeLabels[notification.type] || notification.type}
                   </span>
                   {!notification.isRead && (
-                    <span className="rounded-full bg-[var(--text-primary)] px-2 py-0.5 text-[10px] font-medium text-[var(--bg-primary)]">
+                    <span className="rounded-full bg-[var(--accent)] px-2 py-0.5 text-[10px] font-medium text-white">
                       New
                     </span>
                   )}

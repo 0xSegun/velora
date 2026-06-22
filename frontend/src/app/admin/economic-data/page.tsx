@@ -1,7 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Database, RefreshCw, Plug, Loader2 } from 'lucide-react';
+import { Database, RefreshCw, Plug, Loader2, AlertCircle } from 'lucide-react';
+import PageHeader from '@/components/ui/PageHeader';
+import EmptyState from '@/components/ui/EmptyState';
 import { adminAPI } from '@/lib/api';
 import { toast } from '@/lib/feedback';
 
@@ -33,14 +35,20 @@ export default function AdminEconomicDataPage() {
   const [data, setData] = useState<EconomicDataMgmt | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const { data: payload } = await adminAPI.getEconomicDataManagement();
       setData(payload as EconomicDataMgmt);
     } catch {
-      toast.error('Failed to load economic data management.');
+      const message =
+        'Failed to load economic data management. Ensure the backend API and PostgreSQL database are running.';
+      setError(message);
+      setData(null);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -71,24 +79,52 @@ export default function AdminEconomicDataPage() {
     );
   }
 
+  if (error || !data) {
+    return (
+      <div className="mx-auto max-w-6xl space-y-6">
+        <PageHeader
+          eyebrow="Data Management"
+          title="Economic Data Management"
+          description="Monitor sources, refresh schedules, and API connectivity."
+          icon={Database}
+        />
+        <EmptyState
+          variant="warning"
+          icon={AlertCircle}
+          title="Unable to load economic data"
+          description={error ?? 'No data returned from the server.'}
+          action={
+            <button
+              type="button"
+              onClick={() => void load()}
+              className="btn-primary px-5 py-2.5 text-sm"
+            >
+              Retry
+            </button>
+          }
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-6xl space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-[var(--text-primary)]">Economic Data Management</h1>
-          <p className="text-sm text-[var(--text-muted)]">
-            Monitor sources, refresh schedules, and API connectivity.
-          </p>
-        </div>
-        <button
-          onClick={() => void sync()}
-          disabled={syncing}
-          className="inline-flex items-center gap-2 rounded-xl border border-[var(--border-primary)] px-4 py-2 text-sm hover:bg-[var(--glass-bg-hover)]"
-        >
-          <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
-          Sync Now
-        </button>
-      </div>
+      <PageHeader
+        eyebrow="Data Management"
+        title="Economic Data Management"
+        description="Monitor sources, refresh schedules, and API connectivity."
+        icon={Database}
+        actions={
+          <button
+            onClick={() => void sync()}
+            disabled={syncing}
+            className="btn-secondary px-4 py-2 text-sm"
+          >
+            <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
+            Sync Now
+          </button>
+        }
+      />
 
       <div className="glass-card rounded-xl hover:transform-none p-5">
         <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">

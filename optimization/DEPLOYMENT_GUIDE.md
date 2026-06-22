@@ -91,7 +91,7 @@ python -c "from app.main import app; print('OK:', app.title)"
 A lightweight zip (~0.5 MB) with source only is available:
 
 ```powershell
-cd C:\Users\segun\OneDrive\desktop\infinicast\infinicast
+cd C:\Users\segun\OneDrive\desktop\velora\velora
 powershell -File scripts\create_deployment_package.ps1
 ```
 
@@ -116,7 +116,7 @@ python -m alembic upgrade head
 ### Step 1 — Initialize Git (if not already)
 
 ```bash
-cd infinicast
+cd velora
 git init
 git add .
 git status   # verify no .env or node_modules staged
@@ -128,14 +128,14 @@ The root `.gitignore` already excludes caches, dependencies, archives, and secre
 ### Step 2 — Create GitHub repository
 
 1. Go to [github.com/new](https://github.com/new)
-2. Name: `infinicast` (or your choice)
+2. Name: `velora` (or your choice)
 3. **Do not** initialize with README if you already have one locally
 4. Copy the remote URL
 
 ### Step 3 — Push
 
 ```bash
-git remote add origin https://github.com/YOUR_USERNAME/infinicast.git
+git remote add origin https://github.com/YOUR_USERNAME/velora.git
 git branch -M main
 git push -u origin main
 ```
@@ -191,7 +191,7 @@ jobs:
 
 ## 5. Deploy Frontend to Vercel
 
-> **Note:** “Verve” in hosting contexts usually means **Vercel** — the platform referenced in this project’s CORS config (`infinicast.vercel.app`).
+> **Note:** “Verve” in hosting contexts usually means **Vercel** — the platform referenced in this project’s CORS config (`velora.vercel.app`).
 
 ### Prerequisites
 
@@ -202,7 +202,7 @@ jobs:
 
 1. Log in at [vercel.com](https://vercel.com)
 2. **Add New → Project**
-3. Import your GitHub `infinicast` repository
+3. Import your GitHub `velora` repository
 4. Set **Root Directory** to `frontend`
 
 ### Step 2 — Build settings
@@ -285,14 +285,14 @@ FRED_API_KEY=...
 # On Ubuntu 22.04+
 sudo apt update && sudo apt install -y python3.11 python3.11-venv postgresql nginx
 
-cd /var/www/infinicast/backend
+cd /var/www/velora/backend
 python3.11 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 alembic upgrade head
 
 # systemd service (example)
-sudo nano /etc/systemd/system/infinicast-api.service
+sudo nano /etc/systemd/system/velora-api.service
 ```
 
 ```ini
@@ -302,9 +302,9 @@ After=network.target
 
 [Service]
 User=www-data
-WorkingDirectory=/var/www/infinicast/backend
-EnvironmentFile=/var/www/infinicast/backend/.env
-ExecStart=/var/www/infinicast/backend/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
+WorkingDirectory=/var/www/velora/backend
+EnvironmentFile=/var/www/velora/backend/.env
+ExecStart=/var/www/velora/backend/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
 Restart=always
 
 [Install]
@@ -312,7 +312,7 @@ WantedBy=multi-user.target
 ```
 
 ```bash
-sudo systemctl enable --now infinicast-api
+sudo systemctl enable --now velora-api
 ```
 
 Put Nginx in front with SSL (Certbot):
@@ -367,13 +367,13 @@ cPanel shared hosting has constraints. This project needs **Node.js** (frontend)
 1. Upload project files (or clone via Git in cPanel)
 2. **Exclude** `node_modules` and `.next` — install on server
 3. cPanel → **Setup Node.js App**
-4. Application root: `infinicast/frontend`
+4. Application root: `velora/frontend`
 5. Application URL: your subdomain (e.g. `app.yourdomain.com`)
 6. Application startup file: use npm scripts
 
 ```bash
 # In cPanel terminal
-cd ~/infinicast/frontend
+cd ~/velora/frontend
 npm ci
 npm run build
 ```
@@ -391,7 +391,7 @@ NODE_ENV=production
 
 Some hosts offer **Setup Python App** (Passenger):
 
-1. Application root: `infinicast/backend`
+1. Application root: `velora/backend`
 2. Entry point: `passenger_wsgi.py` or configure uvicorn via proxy
 3. Many shared hosts **kill long-running processes** — FastAPI + PyTorch may exceed limits
 

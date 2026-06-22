@@ -16,6 +16,7 @@ $includeRoots = @(
     "frontend\next-env.d.ts", "frontend\postcss.config.mjs", "frontend\eslint.config.mjs",
     "frontend\Dockerfile", "frontend\.dockerignore", "frontend\.env.example",
     "scripts\create_deployment_package.ps1", "scripts\prepare_for_deploy.ps1",
+    "scripts\production_optimize.ps1", "scripts\project_storage_audit.py",
     "optimization\DEPLOYMENT_GUIDE.md", "optimization\GITHUB_VERCEL_DEPLOY.md", "optimization\DEPLOY_EXPORT_REPORT.md",
     "docker-compose.yml", ".env.example", "README.md", ".gitignore", ".dockerignore"
 )

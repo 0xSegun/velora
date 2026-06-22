@@ -11,6 +11,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.gzip import GZipMiddleware
 
 from app.config import get_settings
 from app.core.log_rotation import prune_old_archives, setup_file_logging
@@ -24,11 +25,19 @@ from app.routers import (
     analytics,
     api_configs,
     auth,
+    integrations,
+    security,
     countries,
     dashboard,
     datasets,
     economic_data,
     exchange_rates,
+    fred,
+    news_api,
+    imf_api,
+    world_bank_api,
+    trading_economics_api,
+    wikipedia_api,
     resend,
     intelligence,
     notifications,
@@ -44,6 +53,18 @@ from app.services.exchange_rate_scheduler import (
     start_exchange_rate_scheduler,
     stop_exchange_rate_scheduler,
 )
+from app.services.fred_scheduler import start_fred_scheduler, stop_fred_scheduler
+from app.services.news_scheduler import start_news_scheduler, stop_news_scheduler
+from app.services.imf_scheduler import start_imf_scheduler, stop_imf_scheduler
+from app.services.world_bank_scheduler import (
+    start_world_bank_scheduler,
+    stop_world_bank_scheduler,
+)
+from app.services.trading_economics_scheduler import (
+    start_trading_economics_scheduler,
+    stop_trading_economics_scheduler,
+)
+from app.services.wikipedia_scheduler import start_wikipedia_scheduler, stop_wikipedia_scheduler
 
 settings = get_settings()
 
@@ -65,8 +86,20 @@ async def lifespan(app: FastAPI):
         await bootstrap_database(db)
     logger.info("Database bootstrap complete")
     start_exchange_rate_scheduler()
+    start_fred_scheduler()
+    start_news_scheduler()
+    start_imf_scheduler()
+    start_world_bank_scheduler()
+    start_trading_economics_scheduler()
+    start_wikipedia_scheduler()
     yield
     logger.info("Shutting down %s", settings.APP_NAME)
+    await stop_wikipedia_scheduler()
+    await stop_trading_economics_scheduler()
+    await stop_world_bank_scheduler()
+    await stop_imf_scheduler()
+    await stop_news_scheduler()
+    await stop_fred_scheduler()
     await stop_exchange_rate_scheduler()
     await close_db()
 
@@ -80,11 +113,12 @@ app = FastAPI(
     ),
     version="1.0.0",
     lifespan=lifespan,
-    docs_url="/docs",
-    redoc_url="/redoc",
-    openapi_url="/openapi.json",
+    docs_url="/docs" if not settings.is_production else None,
+    redoc_url="/redoc" if not settings.is_production else None,
+    openapi_url="/openapi.json" if not settings.is_production else None,
 )
 
+app.add_middleware(GZipMiddleware, minimum_size=500)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
@@ -126,8 +160,16 @@ app.include_router(public.router)
 app.include_router(analytics.router)
 app.include_router(api_configs.router)
 app.include_router(api_configs.alias_router)
+app.include_router(integrations.router)
+app.include_router(security.router)
 app.include_router(intelligence.router)
 app.include_router(intelligence.admin_router)
+app.include_router(fred.admin_router)
+app.include_router(news_api.admin_router)
+app.include_router(imf_api.admin_router)
+app.include_router(world_bank_api.admin_router)
+app.include_router(trading_economics_api.admin_router)
+app.include_router(wikipedia_api.admin_router)
 app.include_router(exchange_rates.admin_router)
 app.include_router(exchange_rates.rates_admin_router)
 app.include_router(exchange_rates.public_router)

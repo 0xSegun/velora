@@ -26,6 +26,7 @@ class UserResponse(BaseModel):
     avatar_url: str | None = None
     is_verified: bool
     is_active: bool = True
+    mfa_enabled: bool = False
     created_at: datetime
 
     model_config = {"from_attributes": True}

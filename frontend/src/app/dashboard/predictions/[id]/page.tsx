@@ -29,8 +29,12 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
+import { ChartTooltipContent } from "@/components/charts/ChartTooltip";
 import { predictionsAPI } from "@/lib/api";
 import type { Prediction } from "@/types/prediction";
+import { useAuthStore } from "@/store/authStore";
+import { isAnalystRole } from "@/lib/roles";
+import OrdinaryPredictionDetail from "@/components/dashboard/OrdinaryPredictionDetail";
 import { formatDate, formatDateTime } from "@/lib/dates";
 import { getCountryMeta } from "@/lib/countries";
 import { CountryLabel } from "@/components/ui/CountryFlag";
@@ -67,36 +71,13 @@ const INDICATOR_LABELS: Record<string, string> = {
   trade_balance: "Trade Balance",
 };
 
-const ChartTooltip = ({
-  active,
-  payload,
-  label,
-}: {
-  active?: boolean;
-  payload?: Array<{ name: string; value: number; color: string }>;
-  label?: string;
-}) => {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="glass-card rounded-xl p-3 shadow-xl hover:transform-none">
-      <p className="mb-1 text-xs font-medium text-[var(--text-primary)]">
-        {label}
-      </p>
-      {payload.map((entry, i) => (
-        <p key={i} className="text-xs" style={{ color: entry.color }}>
-          {entry.name}:{" "}
-          {typeof entry.value === "number"
-            ? `${entry.value.toFixed(2)}%`
-            : entry.value}
-        </p>
-      ))}
-    </div>
-  );
-};
+
 
 export default function PredictionDetailPage() {
   const params = useParams();
   const id = typeof params.id === "string" ? params.id : "";
+  const role = useAuthStore((s) => s.user?.role);
+  const analystView = isAnalystRole(role);
 
   const [prediction, setPrediction] = useState<Prediction | null>(null);
   const [loading, setLoading] = useState(true);
@@ -155,6 +136,17 @@ export default function PredictionDetailPage() {
 
   const confidenceInterval = prediction?.confidence_interval ?? {};
 
+  if (!analystView) {
+    return (
+      <OrdinaryPredictionDetail
+        prediction={prediction}
+        loading={loading}
+        error={error}
+        onRetry={() => void fetchPrediction()}
+      />
+    );
+  }
+
   if (loading) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center">
@@ -167,7 +159,7 @@ export default function PredictionDetailPage() {
     return (
       <div className="mx-auto max-w-4xl space-y-6">
         <Link
-          href="/dashboard/predictions"
+          href="/analyst/predictions"
           className="inline-flex items-center gap-2 text-sm text-[var(--text-muted)] transition hover:text-[var(--text-primary)]"
         >
           <ArrowLeft className="h-4 w-4" />
@@ -211,7 +203,7 @@ export default function PredictionDetailPage() {
       >
         <div>
           <Link
-            href="/dashboard/predictions"
+            href="/analyst/predictions"
             className="mb-3 inline-flex items-center gap-2 text-sm text-[var(--text-muted)] transition hover:text-[var(--text-primary)] print:hidden"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -336,7 +328,17 @@ export default function PredictionDetailPage() {
                   axisLine={chartAxisLine}
                   tickFormatter={(v) => `${v}%`}
                 />
-                <Tooltip content={<ChartTooltip />} />
+                <Tooltip
+                  content={
+                    <ChartTooltipContent
+                      valueFormatter={(value) =>
+                        typeof value === "number"
+                          ? `${value.toFixed(2)}%`
+                          : String(value)
+                      }
+                    />
+                  }
+                />
                 <Legend wrapperStyle={chartLegendStyle} />
                 <Area
                   type="monotone"
@@ -553,7 +555,7 @@ export default function PredictionDetailPage() {
             {String(prediction.explainability?.prediction_explanation ?? "")}
           </p>
           <Link
-            href="/dashboard/explainability"
+            href="/analyst/explainability"
             className="mt-3 inline-block text-sm text-[var(--text-primary)] hover:underline print:hidden"
           >
             View full explainability center →
@@ -621,7 +623,17 @@ export default function PredictionDetailPage() {
                   axisLine={chartAxisLine}
                   tickFormatter={(v) => `${v}%`}
                 />
-                <Tooltip content={<ChartTooltip />} />
+                <Tooltip
+                  content={
+                    <ChartTooltipContent
+                      valueFormatter={(value) =>
+                        typeof value === "number"
+                          ? `${value.toFixed(2)}%`
+                          : String(value)
+                      }
+                    />
+                  }
+                />
                 <Line
                   type="monotone"
                   dataKey="value"

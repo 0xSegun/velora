@@ -5,8 +5,13 @@ import Link from "next/link";
 import { ShieldOff } from "lucide-react";
 import { MESSAGES, toast } from "@/lib/feedback";
 import AppAmbient from "@/components/ui/AppAmbient";
+import { useAuthStore } from "@/store/authStore";
+import { defaultHomeForRole } from "@/lib/roles";
 
 export default function AccessDeniedPage() {
+  const role = useAuthStore((s) => s.user?.role);
+  const home = defaultHomeForRole(role);
+
   useEffect(() => {
     toast.error(MESSAGES.auth.accessDenied);
   }, []);
@@ -22,19 +27,19 @@ export default function AccessDeniedPage() {
         <p className="mt-2 text-sm text-[var(--text-muted)]">
           {MESSAGES.auth.accessDenied}
         </p>
+        <p className="mt-2 text-xs text-[var(--text-faint)]">
+          This area is reserved for analysts and administrators. Ordinary users
+          see simplified forecasts on the personal dashboard.
+        </p>
         <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
-          <Link
-            href="/dashboard"
-            className="rounded-xl bg-[var(--text-primary)] px-5 py-2.5 text-sm font-medium text-[var(--bg-primary)]"
-          >
-            Go to Dashboard
+          <Link href={home} className="btn-primary px-5 py-2.5 text-sm">
+            Go to My Dashboard
           </Link>
-          <Link
-            href="/login"
-            className="glass-card rounded-xl px-5 py-2.5 text-sm font-medium text-[var(--text-secondary)] hover:transform-none"
-          >
-            Sign in as Admin
-          </Link>
+          {role !== "admin" && (
+            <Link href="/login" className="btn-secondary px-5 py-2.5 text-sm">
+              Sign in with a different account
+            </Link>
+          )}
         </div>
       </div>
     </main>

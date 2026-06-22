@@ -46,30 +46,24 @@ function CustomTooltip({ active, payload, label }: TooltipProps) {
   const predicted = payload.find((p) => p.dataKey === "predicted")?.value;
 
   return (
-    <div className="glass-card rounded-xl hover:transform-none p-3 shadow-xl min-w-[160px]">
-      <p className="text-xs text-[var(--text-muted)] mb-2 font-medium">
-        {label}
-      </p>
+    <div className="chart-tooltip min-w-[160px]">
+      <p className="chart-tooltip__label">{label}</p>
       {actual !== null && actual !== undefined && (
-        <div className="flex items-center justify-between gap-4 mb-1">
-          <span className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)]">
-            <span className="w-2 h-2 rounded-full bg-[#D9D9D9]" />
-            Actual
+        <div className="chart-tooltip__item">
+          <span className="chart-tooltip__series">
+            <span className="chart-tooltip__dot" style={{ backgroundColor: "#D9D9D9" }} />
+            <span className="chart-tooltip__name">Actual</span>
           </span>
-          <span className="text-xs font-semibold text-[var(--text-primary)]">
-            {actual}%
-          </span>
+          <span className="chart-tooltip__value">{actual}%</span>
         </div>
       )}
       {predicted !== null && predicted !== undefined && (
-        <div className="flex items-center justify-between gap-4">
-          <span className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)]">
-            <span className="w-2 h-2 rounded-full bg-[#FFFFFF]" />
-            Predicted
+        <div className="chart-tooltip__item">
+          <span className="chart-tooltip__series">
+            <span className="chart-tooltip__dot" style={{ backgroundColor: "var(--chart-primary)" }} />
+            <span className="chart-tooltip__name">Predicted</span>
           </span>
-          <span className="text-xs font-semibold text-[var(--text-primary)]">
-            {predicted}%
-          </span>
+          <span className="chart-tooltip__value">{predicted}%</span>
         </div>
       )}
     </div>

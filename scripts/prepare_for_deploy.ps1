@@ -1,4 +1,5 @@
 # Remove local dev artifacts and regenerate the Velora deployment package.
+# For full optimization (audit + report), use scripts/production_optimize.ps1 instead.
 $ErrorActionPreference = "Stop"
 $Root = Split-Path $PSScriptRoot -Parent
 Set-Location $Root
@@ -49,7 +50,7 @@ Remove-IfExists (Join-Path $Root "backend\logs")
     "optimization\audit_after.json",
     "optimization\audit_after_cleanup.json",
     "optimization\PROJECT_OPTIMIZATION_REPORT.md",
-    "optimization\infinicast-deploy.zip"
+    "optimization\velora-deploy.zip"
 ) | ForEach-Object { Remove-IfExists (Join-Path $Root $_) }
 
 # Recreate upload dirs for branding assets

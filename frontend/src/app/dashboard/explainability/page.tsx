@@ -13,7 +13,10 @@ import {
   ResponsiveContainer,
   Cell,
 } from "recharts";
+import { chartTooltipProps } from "@/components/charts/ChartTooltip";
 import { predictionsAPI, intelligenceAPI } from "@/lib/api";
+import CountryFocusBar, { useActiveCountryCode } from "@/components/dashboard/CountryFocusBar";
+import { CountryLabel } from "@/components/ui/CountryFlag";
 import { chartAxisLine, chartAxisTick, chartGridStroke } from "@/lib/chartTheme";
 
 interface PredictionSummary {
@@ -24,6 +27,7 @@ interface PredictionSummary {
 }
 
 export default function ExplainabilityPage() {
+  const countryCode = useActiveCountryCode();
   const [predictions, setPredictions] = useState<PredictionSummary[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [explain, setExplain] = useState<Record<string, unknown> | null>(null);
@@ -32,18 +36,23 @@ export default function ExplainabilityPage() {
   const loadPredictions = useCallback(async () => {
     setLoading(true);
     try {
-      const { data } = await predictionsAPI.getHistory({ per_page: 10 });
+      const { data } = await predictionsAPI.getHistory({
+        per_page: 10,
+        country_code: countryCode,
+      });
       const items = (data.predictions ?? []) as PredictionSummary[];
       setPredictions(items);
-      if (items.length && !selectedId) {
-        setSelectedId(items[0].id);
-      }
+      setSelectedId((prev) => {
+        if (items.some((p) => p.id === prev)) return prev;
+        return items[0]?.id ?? null;
+      });
     } catch {
       setPredictions([]);
+      setSelectedId(null);
     } finally {
       setLoading(false);
     }
-  }, [selectedId]);
+  }, [countryCode]);
 
   const loadExplain = useCallback(async (id: string) => {
     try {
@@ -83,9 +92,12 @@ export default function ExplainabilityPage() {
           <Microscope className="h-6 w-6" /> Explainable AI Center
         </h1>
         <p className="text-sm text-[var(--text-muted)]">
-          Attention mechanism visualization and TS-Transformer reasoning
+          Attention mechanism visualization for{" "}
+          <CountryLabel code={countryCode} />
         </p>
       </div>
+
+      <CountryFocusBar label="Explainability focus" />
 
       <div className="flex flex-wrap gap-2">
         {predictions.map((p) => (
@@ -98,7 +110,7 @@ export default function ExplainabilityPage() {
                 : "border border-[var(--border-primary)] hover:bg-[var(--glass-bg)]"
             }`}
           >
-            {p.country_code} · {p.inflation_rate}%
+            <CountryLabel code={p.country_code} flagSize="xs" /> · {p.inflation_rate}%
           </button>
         ))}
       </div>
@@ -112,7 +124,7 @@ export default function ExplainabilityPage() {
                 <CartesianGrid stroke={chartGridStroke} strokeDasharray="3 3" />
                 <XAxis type="number" tick={chartAxisTick} axisLine={chartAxisLine} unit="%" />
                 <YAxis type="category" dataKey="name" width={120} tick={chartAxisTick} />
-                <Tooltip />
+                <Tooltip {...chartTooltipProps} />
                 <Bar dataKey="value" radius={[0, 4, 4, 0]}>
                   {chartData.map((_, i) => (
                     <Cell key={i} fill={i === 0 ? "var(--text-primary)" : "var(--text-muted)"} />

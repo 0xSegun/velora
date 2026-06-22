@@ -14,7 +14,7 @@ export default function GlowCard({ id, children, className = '', hoverable = fal
     <div
       id={id}
       className={`
-        rounded-xl glass
+        rounded-2xl glass
         ${hoverable ? 'glass-card hover:transform-none' : ''}
         ${className}
       `}

@@ -1,5 +1,5 @@
 /**
- * Financial color intelligence — contextual colors on monochrome base.
+ * Financial color intelligence — green/red/yellow/blue contextual colors.
  * Bloomberg / TradingView style: green positive, red negative, yellow caution, blue info.
  */
 

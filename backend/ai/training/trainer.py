@@ -78,14 +78,17 @@ class MultiTaskLoss(nn.Module):
         #    We derive pseudo-labels from the mean target inflation value.
         target_mean = targets.mean(dim=1, keepdim=True)
         deflation_label = (target_mean < 0.3).float()  # 0.3 is scaled threshold
-        loss_def = self.bce(outputs["deflation_probability"], deflation_label)
+        deflation_pred = outputs["deflation_prob"].mean(dim=1, keepdim=True).clamp(1e-6, 1.0 - 1e-6)
+        loss_def = self.bce(deflation_pred, deflation_label)
 
         # 3. Trend direction — 3-class derived from first vs last target step
-        trend_diff = targets[:, -1] - targets[:, 0]
-        trend_labels = torch.zeros(len(trend_diff), dtype=torch.long, device=targets.device)
-        trend_labels[trend_diff > 0.02] = 2  # up
-        trend_labels[trend_diff < -0.02] = 0  # down
-        trend_labels[(trend_diff >= -0.02) & (trend_diff <= 0.02)] = 1  # stable
+        if targets.shape[1] == 1:
+            trend_labels = torch.ones(len(targets), dtype=torch.long, device=targets.device)
+        else:
+            trend_diff = targets[:, -1] - targets[:, 0]
+            trend_labels = torch.ones(len(trend_diff), dtype=torch.long, device=targets.device)
+            trend_labels[trend_diff > 0.02] = 2  # up
+            trend_labels[trend_diff < -0.02] = 0  # down
         loss_trend = self.ce(outputs["trend_direction"], trend_labels)
 
         # 4. Confidence — no ground truth; we use inverse of prediction error
@@ -93,13 +96,16 @@ class MultiTaskLoss(nn.Module):
         with torch.no_grad():
             pred_error = (outputs["inflation_rate"] - targets).abs().mean(dim=1, keepdim=True)
             conf_label = torch.exp(-pred_error * 5).clamp(0, 1)
-        loss_conf = self.mse(outputs["confidence_score"], conf_label)
+        loss_conf = self.mse(outputs["confidence_score"].unsqueeze(-1), conf_label)
 
         # 5. Risk — derived from target volatility (std across horizon)
         with torch.no_grad():
-            target_std = targets.std(dim=1, keepdim=True)
-            risk_label = (target_std * 100).clamp(0, 100)
-        loss_risk = self.mse(outputs["risk_level"], risk_label)
+            if targets.shape[1] == 1:
+                risk_label = (targets[:, 0:1].abs() * 50).clamp(0, 100)
+            else:
+                target_std = targets.std(dim=1, keepdim=True)
+                risk_label = (target_std * 100).clamp(0, 100)
+        loss_risk = self.mse(outputs["risk_level"].unsqueeze(-1), risk_label)
 
         total = (
             self.w_inf * loss_inf

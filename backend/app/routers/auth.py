@@ -21,6 +21,7 @@ from app.schemas.auth import (
     TokenResponse,
     VerifyEmailRequest,
 )
+from app.schemas.security import MfaVerifyRequest
 from app.schemas.user import UserResponse
 from app.services import auth_config_service, auth_service
 from app.utils.security import get_current_user
@@ -40,15 +41,34 @@ async def register(
     return await auth_service.register_user(db, payload)
 
 
-@router.post("/login", response_model=TokenResponse)
+@router.post("/login")
 @limiter.limit("10/minute")
 async def login(
     request: Request,
     payload: LoginRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    """Authenticate and receive JWT tokens."""
-    return await auth_service.login_user(db, payload, request=request)
+    """Authenticate and receive JWT tokens, or an MFA challenge."""
+    result = await auth_service.login_user(db, payload, request=request)
+    await db.commit()
+    return result
+
+
+@router.post("/mfa-verify", response_model=TokenResponse)
+@limiter.limit("10/minute")
+async def mfa_verify(
+    request: Request,
+    payload: MfaVerifyRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Complete login after MFA challenge."""
+    from app.services import security_service
+
+    result = await security_service.verify_mfa_login(
+        db, payload.challenge_token, payload.code, request=request
+    )
+    await db.commit()
+    return result
 
 
 @router.post("/refresh", response_model=TokenResponse)

@@ -26,6 +26,7 @@ from app.schemas.auth import (
     TokenResponse,
     VerifyEmailRequest,
 )
+from app.schemas.security import MfaChallengeResponse
 from app.schemas.user import UserResponse
 from app.services import email_service, session_service
 from app.utils.security import (
@@ -64,15 +65,32 @@ def _user_response(user: User) -> UserResponse:
     )
 
 
-async def _build_tokens(db: AsyncSession, user: User) -> TokenResponse:
+def _client_meta(request=None) -> tuple[str | None, str | None]:
+    if not request:
+        return None, None
+    ip = request.client.host if getattr(request, "client", None) else None
+    ua = request.headers.get("user-agent") if hasattr(request, "headers") else None
+    return ip, ua
+
+
+async def issue_tokens_for_user(
+    db: AsyncSession, user: User, *, request=None
+) -> TokenResponse:
     access = create_access_token({"sub": str(user.id)})
     refresh = create_refresh_token({"sub": str(user.id)})
-    await session_service.create_session(db, user, refresh)
+    ip, ua = _client_meta(request)
+    await session_service.create_session(
+        db, user, refresh, ip_address=ip, user_agent=ua
+    )
     return TokenResponse(
         access_token=access,
         refresh_token=refresh,
         user=_user_response(user),
     )
+
+
+async def _build_tokens(db: AsyncSession, user: User, *, request=None) -> TokenResponse:
+    return await issue_tokens_for_user(db, user, request=request)
 
 
 async def _get_user_by_email(db: AsyncSession, email: str) -> User | None:
@@ -118,6 +136,7 @@ async def register_user(db: AsyncSession, payload: RegisterRequest) -> TokenResp
         )
 
     first_name, last_name = _split_name(payload.full_name)
+    signup_role = UserRole.ANALYST if payload.role == "analyst" else UserRole.USER
     user = User(
         email=payload.email,
         password_hash=hash_password(payload.password),
@@ -127,7 +146,7 @@ async def register_user(db: AsyncSession, payload: RegisterRequest) -> TokenResp
         phone=payload.phone,
         institution=payload.institution,
         country=payload.country,
-        role=UserRole.USER,
+        role=signup_role,
         is_verified=False,
         is_active=True,
     )
@@ -153,7 +172,7 @@ async def login_user(
     db: AsyncSession,
     payload: LoginRequest,
     request=None,
-) -> TokenResponse:
+) -> TokenResponse | MfaChallengeResponse:
     """Authenticate a user with email and password."""
     user = await _get_user_by_email(db, payload.email)
     if not user or not user.password_hash:
@@ -162,6 +181,8 @@ async def login_user(
             detail="Invalid email or password",
         )
     if not verify_password(payload.password, user.password_hash):
+        if user:
+            await track_event(db, event_type="login_failed", user_id=user.id, request=request)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",
@@ -171,8 +192,12 @@ async def login_user(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Account is deactivated",
         )
+    if user.mfa_enabled:
+        from app.services.security_service import create_mfa_challenge
+
+        return MfaChallengeResponse(challenge_token=create_mfa_challenge(user))
     await track_event(db, event_type="login", user_id=user.id, request=request)
-    return await _build_tokens(db, user)
+    return await _build_tokens(db, user, request=request)
 
 
 async def refresh_tokens(db: AsyncSession, refresh_token: str) -> TokenResponse:

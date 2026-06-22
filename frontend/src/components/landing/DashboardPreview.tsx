@@ -29,7 +29,7 @@ export default function DashboardPreview() {
   const inView = useInView(ref, { once: true, margin: "-80px" });
 
   return (
-    <section id="dashboard" className="landing-section max-w-5xl mx-auto px-4 py-24">
+    <section id="dashboard" className="landing-section max-w-5xl mx-auto px-6 pb-24 pt-4">
       <SectionHeading
         eyebrow={dashboardPreview.eyebrow}
         title={dashboardPreview.title}
@@ -41,7 +41,7 @@ export default function DashboardPreview() {
         initial={{ opacity: 0, y: 48, scale: 0.98 }}
         animate={inView ? { opacity: 1, y: 0, scale: 1 } : {}}
         transition={{ duration: 0.8, ease: "easeOut" as const }}
-        className="mt-14 rounded-2xl glass-panel overflow-hidden glow-border glow-border-hover"
+        className="rounded-3xl bg-[var(--bg-card)] border border-[var(--border-primary)] overflow-hidden shadow-[0_24px_80px_rgba(0,0,0,0.6)]"
       >
         <div className="h-10 glass border-b border-[var(--glass-border)] flex items-center gap-2 px-4">
           <span className="w-2.5 h-2.5 rounded-full bg-[var(--text-faint)]" />
@@ -61,8 +61,8 @@ export default function DashboardPreview() {
                 key={item.label}
                 className={`text-xs rounded-lg px-3 py-2 transition-colors ${
                   item.active
-                    ? "glass-heavy text-[var(--text-primary)] font-medium"
-                    : "text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--glass-bg)]"
+                    ? "bg-[var(--accent-faint)] text-[var(--accent)] font-medium border border-[var(--accent)]/20"
+                    : "text-[var(--text-muted)] hover:text-[var(--accent)] hover:bg-[var(--accent-subtle)]"
                 }`}
               >
                 {item.label}

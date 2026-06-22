@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { Target, Loader2, Play } from "lucide-react";
 import { intelligenceAPI } from "@/lib/api";
-import { useAuthStore } from "@/store/authStore";
 import { sentimentTextClass } from "@/lib/financialColors";
+import CountryFocusBar, { useActiveCountryCode } from "@/components/dashboard/CountryFocusBar";
 import { CountryLabel } from "@/components/ui/CountryFlag";
 import { toast } from "@/lib/feedback";
 
@@ -19,8 +19,7 @@ const SLIDERS = [
 ];
 
 export default function ScenariosPage() {
-  const user = useAuthStore((s) => s.user);
-  const countryCode = (user?.country as string) || "NG";
+  const countryCode = useActiveCountryCode();
   const [overrides, setOverrides] = useState<Record<string, number>>({});
   const [result, setResult] = useState<Record<string, unknown> | null>(null);
   const [history, setHistory] = useState<Array<Record<string, unknown>>>([]);
@@ -72,6 +71,8 @@ export default function ScenariosPage() {
         </p>
       </div>
 
+      <CountryFocusBar label="Scenario focus" />
+
       <div className="glass-card rounded-xl hover:transform-none p-5 space-y-5">
         {SLIDERS.map((s) => (
           <div key={s.key}>
@@ -98,7 +99,7 @@ export default function ScenariosPage() {
         <button
           onClick={() => void runScenario()}
           disabled={running}
-          className="inline-flex items-center gap-2 rounded-xl bg-[var(--text-primary)] px-5 py-2.5 text-sm font-medium text-[var(--bg-primary)]"
+          className="inline-flex items-center gap-2 rounded-xl bg-[var(--accent)] px-5 py-2.5 text-sm font-medium text-white"
         >
           {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
           Generate Forecast
@@ -133,7 +134,10 @@ export default function ScenariosPage() {
           <div className="space-y-2">
             {history.slice(0, 5).map((s) => (
               <div key={String(s.id)} className="flex justify-between text-sm">
-                <span>{String(s.name)} · {String(s.country_code)}</span>
+                <span className="inline-flex items-center gap-2">
+                  {String(s.name)} ·{" "}
+                  <CountryLabel code={String(s.country_code)} flagSize="xs" />
+                </span>
                 <span className={sentimentTextClass(
                   (s.forecast_difference as number) > 0 ? "negative" : "positive"
                 )}>

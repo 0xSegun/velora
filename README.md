@@ -79,8 +79,8 @@
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/infinicast.git
-cd infinicast
+git clone https://github.com/yourusername/velora.git
+cd velora
 
 # Copy environment variables
 cp .env.example .env
@@ -143,7 +143,7 @@ npm run dev
 ## 📁 Project Structure
 
 ```
-infinicast/
+velora/
 ├── frontend/                 # Next.js 14 App
 │   ├── src/
 │   │   ├── app/             # App Router pages

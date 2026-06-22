@@ -20,11 +20,12 @@ class PredictionInputData(BaseModel):
     unemployment_rate: float | None = None
     money_supply: float | None = None
     trade_balance: float | None = None
+    inflation_rate: float | None = None
 
 
 class PredictionRequest(BaseModel):
     country_code: str = Field(..., min_length=2, max_length=10)
-    input_data: PredictionInputData
+    input_data: PredictionInputData = Field(default_factory=PredictionInputData)
     forecast_horizon: int = Field(default=6, ge=1, le=24)  # months
 
 

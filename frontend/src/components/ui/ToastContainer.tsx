@@ -4,15 +4,32 @@ import { useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { X, CheckCircle2, XCircle, AlertTriangle, Info } from "lucide-react";
 import { useToastStore, type Toast, type ToastType } from "@/store/toastStore";
+import { cn } from "@/lib/utils";
 
 const TOAST_STYLES: Record<
   ToastType,
-  { bg: string; text: string; icon: typeof CheckCircle2 }
+  { icon: typeof CheckCircle2; iconClass: string; borderClass: string }
 > = {
-  success: { bg: "#16A34A", text: "#FFFFFF", icon: CheckCircle2 },
-  error: { bg: "#DC2626", text: "#FFFFFF", icon: XCircle },
-  warning: { bg: "#FACC15", text: "#000000", icon: AlertTriangle },
-  info: { bg: "#525252", text: "#FFFFFF", icon: Info },
+  success: {
+    icon: CheckCircle2,
+    iconClass: "text-fin-positive",
+    borderClass: "border-emerald-500/30",
+  },
+  error: {
+    icon: XCircle,
+    iconClass: "text-fin-negative",
+    borderClass: "border-red-500/30",
+  },
+  warning: {
+    icon: AlertTriangle,
+    iconClass: "text-fin-caution",
+    borderClass: "border-amber-500/30",
+  },
+  info: {
+    icon: Info,
+    iconClass: "text-fin-info",
+    borderClass: "border-[var(--accent)]/30",
+  },
 };
 
 function ToastItem({
@@ -41,15 +58,19 @@ function ToastItem({
       role="alert"
       aria-live="polite"
       aria-atomic="true"
-      className="pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-xl px-4 py-3 shadow-2xl"
-      style={{ backgroundColor: style.bg, color: style.text }}
+      className={cn(
+        "glass-panel pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-xl border px-4 py-3 shadow-2xl",
+        style.borderClass,
+      )}
     >
-      <Icon className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
-      <p className="flex-1 text-sm font-medium leading-snug">{toast.message}</p>
+      <Icon className={cn("mt-0.5 h-5 w-5 shrink-0", style.iconClass)} aria-hidden="true" />
+      <p className="flex-1 text-sm font-medium leading-snug text-[var(--text-primary)]">
+        {toast.message}
+      </p>
       <button
         type="button"
         onClick={() => onDismiss(toast.id)}
-        className="shrink-0 rounded-lg p-1 opacity-80 transition hover:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+        className="shrink-0 rounded-lg p-1 text-[var(--text-muted)] transition hover:bg-[var(--accent-faint)] hover:text-[var(--text-primary)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
         aria-label="Dismiss notification"
       >
         <X className="h-4 w-4" />

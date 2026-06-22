@@ -10,7 +10,7 @@ export default function AdminResearchPage() {
     <div className="space-y-8">
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-neutral-700 to-neutral-500 shadow-[0_0_20px_rgba(255,255,255,0.08)]">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[var(--accent)] to-[#3b82f6] shadow-[0_0_20px_rgba(255,255,255,0.08)]">
             <FlaskConical size={20} className="text-[var(--text-primary)]" />
           </div>
           <div>
@@ -35,7 +35,7 @@ export default function AdminResearchPage() {
         </p>
         <Link
           href="/dashboard/research"
-          className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-neutral-700 to-neutral-500 px-6 py-3 text-sm font-semibold text-[var(--text-primary)] shadow-lg shadow-black/20 transition hover:shadow-black/30"
+          className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-[var(--accent)] to-[#3b82f6] px-6 py-3 text-sm font-semibold text-[var(--text-primary)] shadow-lg shadow-black/20 transition hover:shadow-black/30"
         >
           Open Research Mode <ExternalLink size={16} />
         </Link>

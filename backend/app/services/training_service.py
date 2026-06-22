@@ -3,6 +3,7 @@ TS-Transformer training job management service.
 """
 
 import asyncio
+import logging
 import uuid
 from datetime import datetime, timezone
 
@@ -12,6 +13,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.model_training import ModelTraining, TrainingStatus
 from app.models.user import User
+
+logger = logging.getLogger(__name__)
 
 _active_jobs: dict[uuid.UUID, asyncio.Task] = {}
 
@@ -51,7 +54,7 @@ async def start_training(
     await db.flush()
     await db.refresh(job)
 
-    task = asyncio.create_task(_simulate_training(job.id))
+    task = asyncio.create_task(_run_training(job.id, dataset_id))
     _active_jobs[job.id] = task
     return job
 
@@ -110,23 +113,113 @@ async def get_latest_running(db: AsyncSession) -> ModelTraining | None:
     return result.scalar_one_or_none()
 
 
-async def _simulate_training(job_id: uuid.UUID) -> None:
-    """Background placeholder until full TS-Transformer pipeline is wired."""
-    from app.database.session import async_session_factory
+def _execute_training(
+    dataset_id: uuid.UUID | None,
+    fred_df=None,
+    feature_config: dict | None = None,
+) -> dict:
+    """Synchronous training — runs in a worker thread."""
+    from pathlib import Path
 
-    await asyncio.sleep(3)
+    import pandas as pd
+
+    from ai.training.runner import load_training_dataframe, run_training
+
+    backend_root = Path(__file__).resolve().parents[2]
+    df = None
+    csv_path = None
+
+    if dataset_id:
+        # Dataset path resolved by caller context — load via sync DB not available here;
+        # fall back to sample data if custom dataset path cannot be resolved.
+        csv_path = backend_root / "data" / "sample_economic_data.csv"
+    else:
+        csv_path = backend_root / "data" / "sample_economic_data.csv"
+
+    if not csv_path.exists():
+        from data.generate_data import generate_economic_data
+        generate_economic_data()
+
+    return run_training(csv_path=csv_path, df=df, fred_df=fred_df, feature_config=feature_config)
+
+
+async def _run_training(job_id: uuid.UUID, dataset_id: uuid.UUID | None) -> None:
+    """Background task: train model and persist real metrics."""
+    from app.database.session import async_session_factory
+    from app.services.fred_service import build_fred_training_frame, get_config
+
+    fred_df = None
+    feature_config = None
+    try:
+        async with async_session_factory() as prep_db:
+            fred_cfg = await get_config(prep_db)
+            if fred_cfg.prediction_enabled:
+                fred_df = await build_fred_training_frame(prep_db)
+                feature_config = fred_cfg.feature_config
+    except Exception:
+        logger.debug("FRED training data unavailable", exc_info=True)
+
+    try:
+        result = await asyncio.to_thread(
+            _execute_training, dataset_id, fred_df, feature_config
+        )
+    except asyncio.CancelledError:
+        _active_jobs.pop(job_id, None)
+        raise
+    except Exception as exc:
+        logger.exception("Training job %s failed", job_id)
+        async with async_session_factory() as db:
+            row = await db.execute(select(ModelTraining).where(ModelTraining.id == job_id))
+            job = row.scalar_one_or_none()
+            if job and job.status == TrainingStatus.RUNNING:
+                job.status = TrainingStatus.FAILED
+                job.error_message = str(exc)[:2000]
+                job.completed_at = datetime.now(timezone.utc)
+                await db.commit()
+        _active_jobs.pop(job_id, None)
+        return
+
     async with async_session_factory() as db:
-        result = await db.execute(select(ModelTraining).where(ModelTraining.id == job_id))
-        job = result.scalar_one_or_none()
+        row = await db.execute(select(ModelTraining).where(ModelTraining.id == job_id))
+        job = row.scalar_one_or_none()
         if not job or job.status != TrainingStatus.RUNNING:
+            _active_jobs.pop(job_id, None)
             return
+
         job.status = TrainingStatus.COMPLETED
-        job.accuracy = 0.94
-        job.rmse = 0.42
-        job.mae = 0.31
-        job.epochs = 50
-        job.training_time_seconds = 3.0
+        job.accuracy = result["accuracy"]
+        job.rmse = result["rmse"]
+        job.mae = result["mae"]
+        job.epochs = result["epochs_trained"]
+        job.training_time_seconds = result["training_time_seconds"]
         job.completed_at = datetime.now(timezone.utc)
-        job.metrics = {"val_loss": 0.18, "train_loss": 0.15}
+        job.metrics = {
+            "accuracy_pct": result["accuracy_pct"],
+            "mape": result["mape"],
+            "r2": result["r2"],
+            "val_loss": result["best_val_loss"],
+            "best_epoch": result["best_epoch"],
+        }
         await db.commit()
+
+    # Reload inference engine and refresh accuracy dashboard records
+    try:
+        from app.services.ts_transformer_engine import reload_model
+        reload_model()
+    except Exception as exc:
+        logger.warning("Could not reload inference model: %s", exc)
+
+    try:
+        from app.services.intelligence_service import _refresh_accuracy_records
+        async with async_session_factory() as db:
+            await _refresh_accuracy_records(db, None)
+            await db.commit()
+    except Exception as exc:
+        logger.warning("Could not refresh accuracy records: %s", exc)
+
     _active_jobs.pop(job_id, None)
+    logger.info(
+        "Training job %s completed — accuracy %.1f%%",
+        job_id,
+        result["accuracy_pct"],
+    )

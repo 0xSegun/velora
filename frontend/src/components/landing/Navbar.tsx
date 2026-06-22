@@ -30,36 +30,40 @@ export default function Navbar() {
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.5, ease: "easeOut" as const }}
-        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 print:hidden ${
-          scrolled ? "glass-nav shadow-lg" : "glass-nav"
+        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 print:hidden ${
+          scrolled
+            ? "bg-[var(--bg-primary)]/90 backdrop-blur-xl border-b border-[var(--border-primary)]"
+            : "bg-transparent"
         }`}
       >
-        <nav className="max-w-6xl mx-auto flex items-center justify-between px-4 h-16">
+        <nav className="max-w-6xl mx-auto flex items-center justify-between px-6 h-16">
           <a
             href="#hero"
             id="navbar-logo"
-            className="flex items-center gap-2 text-[var(--text-primary)] font-bold text-xl"
-            style={{ fontFamily: "var(--font-display), sans-serif" }}
+            className="flex items-center gap-2.5 text-[var(--text-primary)] font-semibold text-base"
           >
             {branding.logoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={branding.logoUrl} alt={branding.siteName} className="h-8 w-8 object-contain" />
+              <img
+                src={branding.logoUrl}
+                alt={branding.siteName}
+                className="h-6 w-6 object-contain"
+              />
             ) : (
-              <span>{navbar.brandEmoji}</span>
+              <span className="text-lg">{navbar.brandEmoji}</span>
             )}
             {navbar.brandName || branding.siteName}
           </a>
 
-          <ul className="hidden lg:flex items-center gap-7">
+          <ul className="hidden lg:flex items-center gap-8">
             {navbar.links.map((link) => (
               <li key={link.label}>
                 <a
                   id={`nav-link-${link.label.toLowerCase().replace(/\s+/g, "-")}`}
                   href={link.href}
-                  className="text-sm text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors duration-200 relative group"
+                  className="text-sm text-[var(--text-muted)] hover:text-[var(--accent)] transition-colors duration-200"
                 >
                   {link.label}
-                  <span className="absolute -bottom-1 left-0 w-0 h-px bg-[var(--text-primary)] transition-all duration-300 group-hover:w-full" />
                 </a>
               </li>
             ))}
@@ -68,7 +72,7 @@ export default function Navbar() {
           <a
             id="navbar-cta"
             href="/register"
-            className="hidden md:inline-flex items-center btn-shine bg-[var(--text-primary)] text-[var(--bg-primary)] text-sm font-medium rounded-full px-6 py-2 hover:shadow-[var(--glow-active)] transition-shadow duration-300"
+            className="hidden md:inline-flex btn-secondary text-sm px-5 py-2"
           >
             {navbar.ctaLabel}
           </a>
@@ -76,7 +80,7 @@ export default function Navbar() {
           <button
             id="navbar-mobile-toggle"
             onClick={() => setMobileOpen((prev) => !prev)}
-            className="lg:hidden text-[var(--text-primary)] p-2 rounded-lg glass"
+            className="lg:hidden text-[var(--text-primary)] p-2"
             aria-label="Toggle menu"
           >
             {mobileOpen ? <X size={22} /> : <Menu size={22} />}
@@ -93,7 +97,7 @@ export default function Navbar() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setMobileOpen(false)}
-              className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden"
+              className="fixed inset-0 z-40 bg-black/80 backdrop-blur-sm lg:hidden"
             />
 
             <motion.div
@@ -102,16 +106,16 @@ export default function Navbar() {
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 26, stiffness: 200 }}
-              className="fixed top-0 right-0 bottom-0 z-50 w-72 glass-panel border-l border-[var(--glass-border)] flex flex-col p-6 pt-20 lg:hidden"
+              className="fixed top-0 right-0 bottom-0 z-50 w-80 bg-[var(--bg-card)] border-l border-[var(--border-primary)] flex flex-col p-6 pt-20 lg:hidden"
             >
-              <ul className="flex flex-col gap-2">
+              <ul className="flex flex-col gap-1">
                 {navbar.links.map((link) => (
                   <li key={link.label}>
                     <a
                       id={`mobile-link-${link.label.toLowerCase().replace(/\s+/g, "-")}`}
                       href={link.href}
                       onClick={() => setMobileOpen(false)}
-                      className="block text-base text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors py-3 px-3 rounded-lg hover:bg-[var(--glass-bg-hover)]"
+                      className="block text-base text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors py-3 px-3 rounded-xl hover:bg-[var(--bg-elevated)]"
                     >
                       {link.label}
                     </a>
@@ -123,7 +127,7 @@ export default function Navbar() {
                 id="mobile-cta"
                 href="/register"
                 onClick={() => setMobileOpen(false)}
-                className="mt-8 inline-flex items-center justify-center btn-shine bg-[var(--text-primary)] text-[var(--bg-primary)] text-sm font-medium rounded-full px-6 py-3"
+                className="mt-8 btn-primary w-full py-3"
               >
                 {navbar.ctaLabel}
               </a>

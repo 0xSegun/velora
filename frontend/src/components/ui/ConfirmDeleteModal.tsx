@@ -84,7 +84,7 @@ export default function ConfirmDeleteModal({
                 type="button"
                 onClick={onCancel}
                 disabled={loading}
-                className="rounded-xl border border-[var(--border-primary)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition hover:bg-[var(--accent-faint)] disabled:opacity-50"
+                className="btn-secondary px-4 py-2 text-sm disabled:opacity-50"
               >
                 Cancel
               </button>
@@ -92,7 +92,7 @@ export default function ConfirmDeleteModal({
                 type="button"
                 onClick={onConfirm}
                 disabled={loading}
-                className="rounded-xl bg-[#DC2626] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#B91C1C] disabled:opacity-50"
+                className="rounded-full bg-[#DC2626] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#B91C1C] disabled:opacity-50"
               >
                 {loading ? "Deleting..." : "Delete"}
               </button>

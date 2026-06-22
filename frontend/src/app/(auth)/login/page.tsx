@@ -11,6 +11,7 @@ import { validateEmailField } from '@/lib/validation';
 import FieldError from '@/components/ui/FieldError';
 import GoogleSignInButton from '@/components/auth/GoogleSignInButton';
 import { useAuthStore } from '@/store/authStore';
+import { canAccessRoute, defaultHomeForRole } from '@/lib/roles';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -22,6 +23,8 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [rememberMe, setRememberMe] = useState(false);
+  const [mfaChallenge, setMfaChallenge] = useState<string | null>(null);
+  const [mfaCode, setMfaCode] = useState("");
   const [adminCreds, setAdminCreds] = useState<{
     email: string;
     password: string;
@@ -63,9 +66,11 @@ export default function LoginPage() {
     try {
       const { data } = await authAPI.login(email, password);
       const payload = data as {
-        access_token: string;
-        refresh_token: string;
-        user: {
+        mfa_required?: boolean;
+        challenge_token?: string;
+        access_token?: string;
+        refresh_token?: string;
+        user?: {
           id: string;
           email: string;
           full_name: string;
@@ -77,18 +82,26 @@ export default function LoginPage() {
           is_verified: boolean;
         };
       };
+      if (payload.mfa_required && payload.challenge_token) {
+        setMfaChallenge(payload.challenge_token);
+        toast.info("Enter your authenticator code to continue");
+        return;
+      }
+      if (!payload.access_token || !payload.refresh_token || !payload.user) {
+        setError("Unexpected login response");
+        return;
+      }
       login(payload.user, payload.access_token, payload.refresh_token);
       toastWelcomeBack(payload.user.full_name);
       const redirect =
         typeof window !== 'undefined'
           ? new URLSearchParams(window.location.search).get('redirect')
           : null;
-      if (payload.user.role === 'admin' && redirect?.startsWith('/admin')) {
-        router.push(redirect);
-      } else if (redirect?.startsWith('/dashboard')) {
+      const home = defaultHomeForRole(payload.user.role);
+      if (redirect && canAccessRoute(payload.user.role, redirect)) {
         router.push(redirect);
       } else {
-        router.push(payload.user.role === 'admin' ? '/admin' : '/dashboard');
+        router.push(home);
       }
     } catch (err) {
       const { message, type } = parseLoginError(err);
@@ -99,6 +112,76 @@ export default function LoginPage() {
       setLoading(false);
     }
   };
+
+  const completeMfaLogin = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!mfaChallenge || !mfaCode.trim()) return;
+    setLoading(true);
+    setError("");
+    try {
+      const { data } = await authAPI.mfaVerify(mfaChallenge, mfaCode.trim());
+      const payload = data as {
+        access_token: string;
+        refresh_token: string;
+        user: {
+          id: string;
+          email: string;
+          full_name: string;
+          country: string;
+          role: 'user' | 'admin' | 'analyst';
+          is_verified: boolean;
+        };
+      };
+      login(payload.user, payload.access_token, payload.refresh_token);
+      toastWelcomeBack(payload.user.full_name);
+      router.push(defaultHomeForRole(payload.user.role));
+    } catch (err) {
+      const { message, type } = parseLoginError(err);
+      setError(message);
+      if (type === 'warning') toast.warning(message);
+      else toast.error(message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (mfaChallenge) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 30 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="glass-panel max-w-md w-full mx-auto rounded-2xl p-8"
+      >
+        <h1 className="text-2xl font-bold text-[var(--text-primary)] text-center">Two-factor authentication</h1>
+        <p className="text-[var(--text-muted)] text-sm mt-2 text-center">Enter the 6-digit code from your authenticator app</p>
+        {error && (
+          <div className="mt-4 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm text-center">
+            {error}
+          </div>
+        )}
+        <form onSubmit={completeMfaLogin} className="mt-6 space-y-4">
+          <input
+            value={mfaCode}
+            onChange={(e) => setMfaCode(e.target.value)}
+            placeholder="000000"
+            className="app-input w-full rounded-xl px-4 py-2.5 text-center text-lg tracking-widest"
+            maxLength={8}
+            autoFocus
+          />
+          <button type="submit" disabled={loading} className="btn-primary w-full py-2.5 rounded-xl">
+            {loading ? "Verifying…" : "Verify & Sign In"}
+          </button>
+          <button
+            type="button"
+            onClick={() => { setMfaChallenge(null); setMfaCode(""); }}
+            className="w-full text-sm text-[var(--text-muted)]"
+          >
+            Back to login
+          </button>
+        </form>
+      </motion.div>
+    );
+  }
 
   return (
     <motion.div
@@ -234,7 +317,7 @@ export default function LoginPage() {
           </label>
           <Link
             href="/forgot-password"
-            className="text-[var(--text-primary)] hover:text-[var(--text-secondary)] text-sm transition-colors"
+            className="text-[var(--accent)] hover:text-[var(--accent-hover)] text-sm transition-colors"
           >
             Forgot password?
           </Link>
@@ -245,7 +328,7 @@ export default function LoginPage() {
           id="login-submit-btn"
           type="submit"
           disabled={loading}
-          className="w-full mt-6 bg-[var(--text-primary)] hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed text-[var(--bg-primary)] rounded-xl py-2.5 font-medium shadow-[0_0_20px_rgba(255,255,255,0.06)] transition-all duration-200 flex items-center justify-center gap-2"
+          className="btn-primary btn-shine w-full mt-6 py-2.5 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {loading ? (
             <>

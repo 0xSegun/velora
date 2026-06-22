@@ -64,6 +64,9 @@ class Settings(BaseSettings):
 
     # External APIs
     FRED_API_KEY: str = ""
+    NEWS_API_KEY: str = ""
+    IMF_API_KEY: str = ""
+    TRADING_ECONOMICS_API_KEY: str = ""
     OPENAI_API_KEY: str = ""
 
     # Frontend
@@ -85,11 +88,20 @@ class Settings(BaseSettings):
     def effective_jwt_secret(self) -> str:
         return self.JWT_SECRET_KEY or self.JWT_SECRET
 
+    @staticmethod
+    def _normalize_async_database_url(url: str) -> str:
+        """Convert Render/Heroku postgres URLs to asyncpg SQLAlchemy format."""
+        if url.startswith("postgres://"):
+            return url.replace("postgres://", "postgresql+asyncpg://", 1)
+        if url.startswith("postgresql://") and "+asyncpg" not in url:
+            return url.replace("postgresql://", "postgresql+asyncpg://", 1)
+        return url
+
     @computed_field  # type: ignore[prop-decorator]
     @property
     def effective_database_url(self) -> str:
         if self.DATABASE_URL:
-            return self.DATABASE_URL
+            return self._normalize_async_database_url(self.DATABASE_URL)
         return (
             f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
             f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"

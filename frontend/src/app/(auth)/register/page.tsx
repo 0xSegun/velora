@@ -76,6 +76,7 @@ export default function RegisterPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [accountType, setAccountType] = useState<'user' | 'analyst'>('user');
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -111,6 +112,7 @@ export default function RegisterPage() {
         phone: phone || undefined,
         institution: institution || undefined,
         country: COUNTRY_CODES[country] ?? 'NG',
+        role: accountType,
       });
       toast.success(MESSAGES.auth.registerSuccess);
       setTimeout(() => router.push('/login'), 2500);
@@ -145,7 +147,7 @@ export default function RegisterPage() {
 
       <h1 className="text-2xl font-bold text-[var(--text-primary)] mt-6 text-center">Create Your Account</h1>
       <p className="text-[var(--text-muted)] text-sm mt-1 text-center">
-        Join thousands of researchers and economists
+        Choose how you want to use Velora — simple insights or professional analysis
       </p>
 
       {errors.form && (
@@ -237,6 +239,40 @@ export default function RegisterPage() {
             placeholder="e.g. University of Lagos"
             className={inputClass}
           />
+        </div>
+
+        <div>
+          <p className="block text-sm font-medium text-[var(--text-secondary)] mb-2">
+            Account Type
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            {([
+              {
+                id: 'user' as const,
+                title: 'Ordinary User',
+                desc: 'Simple forecasts and personal impact',
+              },
+              {
+                id: 'analyst' as const,
+                title: 'Analyst',
+                desc: 'Advanced analytics and research tools',
+              },
+            ]).map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                onClick={() => setAccountType(option.id)}
+                className={`rounded-xl border px-3 py-3 text-left transition ${
+                  accountType === option.id
+                    ? 'border-[var(--border-active)] bg-[var(--accent-faint)]'
+                    : 'border-[var(--border-hover)] bg-[var(--glass-bg)] hover:border-[var(--border-active)]'
+                }`}
+              >
+                <p className="text-sm font-semibold text-[var(--text-primary)]">{option.title}</p>
+                <p className="mt-1 text-xs text-[var(--text-muted)]">{option.desc}</p>
+              </button>
+            ))}
+          </div>
         </div>
 
         <div>
@@ -371,7 +407,7 @@ export default function RegisterPage() {
           id="register-submit-btn"
           type="submit"
           disabled={loading}
-          className="w-full mt-6 bg-[var(--text-primary)] hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed text-[var(--bg-primary)] rounded-xl py-2.5 font-medium shadow-[0_0_20px_rgba(255,255,255,0.06)] transition-all duration-200 flex items-center justify-center gap-2"
+          className="btn-primary btn-shine w-full mt-6 py-2.5 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {loading ? (
             <>

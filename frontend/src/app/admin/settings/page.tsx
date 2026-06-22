@@ -16,6 +16,7 @@ import {
   Image,
 } from 'lucide-react';
 import { useAdminSettingsBundle } from '@/hooks/useAdminSettingsBundle';
+import ToggleSwitch from '@/components/ui/ToggleSwitch';
 
 const sectionVariants = {
   hidden: { opacity: 0, y: 16 },
@@ -46,7 +47,7 @@ function GlassInput({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full rounded-xl border border-[var(--border-hover)] bg-[var(--accent-faint)] px-4 py-2.5 text-sm text-[var(--text-primary)] outline-none transition focus:border-[var(--border-active)]/50"
+        className="app-input w-full rounded-xl px-4 py-2.5 text-sm text-[var(--text-primary)] outline-none transition"
       />
     </div>
   );
@@ -63,7 +64,7 @@ function PasswordInput({ id, label, value, onChange }: { id: string; label: stri
           type={show ? 'text' : 'password'}
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="w-full rounded-xl border border-[var(--border-hover)] bg-[var(--accent-faint)] px-4 py-2.5 pr-10 text-sm text-[var(--text-primary)] outline-none"
+          className="app-input w-full rounded-xl px-4 py-2.5 pr-10 text-sm text-[var(--text-primary)] outline-none"
         />
         <button type="button" onClick={() => setShow(!show)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]">
           {show ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -77,21 +78,19 @@ function GlassTextarea({ id, label, value, onChange, rows = 3 }: { id: string; l
   return (
     <div>
       <label htmlFor={id} className="mb-1.5 block text-sm font-medium text-[var(--text-muted)]">{label}</label>
-      <textarea id={id} value={value} onChange={(e) => onChange(e.target.value)} rows={rows} className="w-full resize-none rounded-xl border border-[var(--border-hover)] bg-[var(--accent-faint)] px-4 py-2.5 text-sm text-[var(--text-primary)] outline-none" />
+      <textarea id={id} value={value} onChange={(e) => onChange(e.target.value)} rows={rows} className="app-input w-full resize-none rounded-xl px-4 py-2.5 text-sm text-[var(--text-primary)] outline-none" />
     </div>
   );
 }
 
-function ToggleSwitch({ id, label, description, checked, onChange, danger = false }: { id: string; label: string; description?: string; checked: boolean; onChange: (v: boolean) => void; danger?: boolean }) {
+function LabeledToggle({ id, label, description, checked, onChange, danger = false }: { id: string; label: string; description?: string; checked: boolean; onChange: (v: boolean) => void; danger?: boolean }) {
   return (
     <div className="flex items-center justify-between gap-4">
       <div>
         <p className={`text-sm font-medium ${danger ? 'text-amber-400' : 'text-[var(--text-secondary)]'}`}>{label}</p>
         {description && <p className="text-xs text-[var(--text-muted)]">{description}</p>}
       </div>
-      <button id={id} role="switch" aria-checked={checked} onClick={() => onChange(!checked)} className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${checked ? (danger ? 'bg-amber-500' : 'bg-neutral-600') : 'bg-white/10'}`}>
-        <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-6' : 'translate-x-1'}`} />
-      </button>
+      <ToggleSwitch id={id} checked={checked} onChange={onChange} danger={danger} aria-label={label} />
     </div>
   );
 }
@@ -210,8 +209,8 @@ export default function SettingsPage() {
           <div className="md:col-span-2"><GlassTextarea id="settings-maintenance-msg" label="Maintenance Message" value={general.maintenanceMessage} onChange={(v) => updateGeneral({ ...general, maintenanceMessage: v })} /></div>
         </div>
         <div className="mt-5 space-y-4">
-          <ToggleSwitch id="settings-enable-registration" label="Enable Registration" checked={general.enableRegistration} onChange={(v) => updateGeneral({ ...general, enableRegistration: v })} />
-          <ToggleSwitch id="settings-maintenance-mode" label="Maintenance Mode" checked={general.maintenance} onChange={(v) => updateGeneral({ ...general, maintenance: v })} danger />
+          <LabeledToggle id="settings-enable-registration" label="Enable Registration" checked={general.enableRegistration} onChange={(v) => updateGeneral({ ...general, enableRegistration: v })} />
+          <LabeledToggle id="settings-maintenance-mode" label="Maintenance Mode" checked={general.maintenance} onChange={(v) => updateGeneral({ ...general, maintenance: v })} danger />
         </div>
         <SaveBtn onClick={saveGeneral} saving={saving} label="Save General" />
       </motion.section>

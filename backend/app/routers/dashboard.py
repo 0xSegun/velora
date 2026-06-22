@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.user import User
-from app.services import dashboard_service
+from app.services import dashboard_service, user_insights_service
 from app.utils.security import get_current_user
 
 router = APIRouter(prefix="/api/dashboard", tags=["Dashboard"])
@@ -58,3 +58,30 @@ async def update_tracked(
 async def server_time(user: User = Depends(get_current_user)):
     tz = dashboard_service._resolve_timezone(user)
     return dashboard_service._server_clock(tz)
+
+
+@router.get("/user-insights")
+async def user_insights(
+    country_code: str | None = None,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Personalized charts, cost-of-living, and briefing data for ordinary users."""
+    return await user_insights_service.get_user_insights(
+        db, user, country_code=country_code
+    )
+
+
+@router.get("/briefing")
+async def economic_briefing(
+    period: str = "morning",
+    country_code: str | None = None,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Daily, weekly, or monthly AI economic briefing."""
+    if period not in ("morning", "weekly", "monthly"):
+        period = "morning"
+    return await user_insights_service.get_briefing(
+        db, user, period, country_code=country_code
+    )

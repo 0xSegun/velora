@@ -7,6 +7,7 @@ import { authAPI } from '@/lib/api';
 import { parseLoginError } from '@/lib/errorHandler';
 import { toast, toastWelcomeBack } from '@/lib/feedback';
 import { useAuthStore } from '@/store/authStore';
+import { defaultHomeForRole } from '@/lib/roles';
 
 export default function GoogleSignInButton() {
   const router = useRouter();
@@ -45,7 +46,7 @@ export default function GoogleSignInButton() {
         };
         login(payload.user, payload.access_token, payload.refresh_token);
         toastWelcomeBack(payload.user.full_name);
-        router.push(payload.user.role === 'admin' ? '/admin' : '/dashboard');
+        router.push(defaultHomeForRole(payload.user.role));
       } catch (err) {
         const { message } = parseLoginError(err);
         toast.error(message);

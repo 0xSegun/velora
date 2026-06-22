@@ -109,7 +109,7 @@ export default function ForgotPasswordPage() {
                 id="forgot-password-submit-btn"
                 type="submit"
                 disabled={loading}
-                className="w-full bg-[var(--text-primary)] hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed text-[var(--bg-primary)] rounded-xl py-2.5 font-medium shadow-[0_0_20px_rgba(255,255,255,0.06)] transition-all duration-200 flex items-center justify-center gap-2"
+                className="btn-primary btn-shine w-full py-2.5 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? 'Sending...' : 'Send Reset Link'}
               </button>

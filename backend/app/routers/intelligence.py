@@ -21,9 +21,11 @@ from app.schemas.intelligence import (
     ScenarioRequest,
     ScenarioResponse,
 )
+from app.schemas.wikipedia_api import CountryContextResponse
 from app.services import economic_events_service, intelligence_service
+from app.services import intelligence_platform_service as platform
 from app.services.prediction_service import get_explainability_for_prediction
-from app.utils.security import get_current_user, require_admin
+from app.utils.security import get_current_user, require_admin, require_analyst
 
 router = APIRouter(prefix="/api/intelligence", tags=["Intelligence"])
 admin_router = APIRouter(prefix="/api/admin/intelligence", tags=["Admin Intelligence"])
@@ -204,17 +206,81 @@ async def economic_health(
     return await intelligence_service.compute_economic_health(db, country_code)
 
 
+# ── Country Context (IMF + Wikipedia) ────────────────────────────────────────
+
+@router.get("/country-context/{country_code}", response_model=CountryContextResponse)
+async def get_country_context(
+    country_code: str,
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(get_current_user),
+):
+    return await intelligence_service.get_country_context(db, country_code)
+
+
 # ── News & Sentiment ─────────────────────────────────────────────────────────
+
+@router.get("/news/status")
+async def news_feed_status(
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(get_current_user),
+):
+    from app.services import news_service
+    health = await news_service.get_health(db)
+    return {
+        "live_feed_enabled": health.is_active,
+        "provider": health.provider,
+        "status": health.status,
+        "last_sync": health.last_sync.isoformat() if health.last_sync else None,
+        "articles_retrieved": health.articles_retrieved,
+        "using_cached_data": health.using_cached_data,
+    }
+
 
 @router.get("/news")
 async def economic_news(
     country_code: str | None = None,
     category: str | None = None,
+    source: str | None = None,
+    topic: str | None = None,
+    search: str | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
     limit: int = Query(20, ge=1, le=50),
+    country_priority: bool = Query(True),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    active_country = (country_code or user.country or "NG").upper()
+    items = await intelligence_service.get_news(
+        db,
+        active_country,
+        category,
+        source,
+        topic,
+        search,
+        date_from,
+        date_to,
+        limit,
+        tracked_countries=user.tracked_countries or [],
+        country_priority=country_priority,
+    )
+    from app.services.country_priority_service import build_priority_tiers
+
+    return {
+        "items": items,
+        "total": len(items),
+        "country_code": active_country,
+        "priority_tiers": build_priority_tiers(active_country, user.tracked_countries or []),
+    }
+
+
+@router.get("/news/{article_id}")
+async def get_news_article(
+    article_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
     _user: User = Depends(get_current_user),
 ):
-    return await intelligence_service.get_news(db, country_code, category, limit)
+    return await intelligence_service.get_news_by_id(db, article_id)
 
 
 @router.get("/sentiment/{country_code}")
@@ -269,6 +335,265 @@ async def research_detail(
         "pdf_path": pub.pdf_path,
         "published_at": pub.published_at.isoformat(),
     }
+
+
+# ── Intelligence Hub (Final Layer) ───────────────────────────────────────────
+
+@router.get("/hub/{country_code}")
+async def intelligence_hub(
+    country_code: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    role = user.role.value if hasattr(user.role, "value") else str(user.role)
+    include_admin = role in ("admin", "analyst")
+    return await platform.get_intelligence_hub(db, country_code, include_admin=include_admin)
+
+
+@router.get("/reliability/{country_code}")
+async def forecast_reliability(
+    country_code: str,
+    confidence: float = Query(0.75, ge=0, le=1),
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(get_current_user),
+):
+    return await platform.compute_reliability(db, country_code, confidence)
+
+
+@router.get("/changes/{country_code}")
+async def forecast_changes(
+    country_code: str,
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(get_current_user),
+):
+    return await platform.get_forecast_changes(db, country_code)
+
+
+@router.get("/regime/{country_code}")
+async def economic_regime(
+    country_code: str,
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(get_current_user),
+):
+    return await platform.detect_economic_regime(db, country_code)
+
+
+@router.get("/anomalies/{country_code}")
+async def economic_anomalies(
+    country_code: str,
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(get_current_user),
+):
+    return await platform.detect_anomalies(db, country_code)
+
+
+@router.get("/warnings")
+async def early_warnings(
+    country_code: str | None = None,
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(get_current_user),
+):
+    return await platform.get_early_warnings(db, country_code)
+
+
+@router.get("/similarity/{country_code}")
+async def country_similarity(
+    country_code: str,
+    limit: int = Query(5, ge=1, le=15),
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(get_current_user),
+):
+    return await platform.get_similar_countries(db, country_code, limit)
+
+
+@router.get("/data-selection/{country_code}")
+async def data_selection(
+    country_code: str,
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(get_current_user),
+):
+    from app.services.indicator_selection_service import select_best_indicators
+
+    return await select_best_indicators(db, country_code)
+
+
+@router.get("/cpi-selection/{country_code}")
+async def cpi_selection(
+    country_code: str,
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(get_current_user),
+):
+    from app.services.cpi_selection_service import select_best_cpi
+
+    return await select_best_cpi(db, country_code)
+
+
+@router.get("/inflation-map")
+async def global_inflation_map(
+    year: int | None = None,
+    continent: str | None = None,
+    indicator: str = Query("inflation_level"),
+    horizon: int = Query(6, ge=1, le=24),
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(get_current_user),
+):
+    return await platform.get_inflation_map(db, year, continent, indicator, horizon)
+
+
+@router.get("/backtest")
+async def backtest_center(
+    country_code: str | None = None,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_analyst),
+):
+    return await platform.run_backtest_center(db, country_code, user.id)
+
+
+@router.get("/lineage/{prediction_id}")
+async def data_lineage(
+    prediction_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(get_current_user),
+):
+    from sqlalchemy import select
+    from app.models.prediction import Prediction
+    result = await db.execute(select(Prediction).where(Prediction.id == prediction_id))
+    pred = result.scalar_one_or_none()
+    if not pred:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Prediction not found")
+    if pred.data_lineage:
+        return pred.data_lineage
+    return await platform.build_data_lineage(db, pred.country_code, pred.input_params)
+
+
+@router.get("/archive/{country_code}")
+async def forecast_archive(
+    country_code: str,
+    limit: int = Query(20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(get_current_user),
+):
+    return await platform.get_forecast_archive(db, country_code, limit)
+
+
+@router.get("/recommendations/{country_code}")
+async def forecast_recommendations(
+    country_code: str,
+    risk_level: str | None = None,
+    horizon: int = Query(6, ge=1, le=24),
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(get_current_user),
+):
+    return await platform.get_recommendations(db, country_code, risk_level, horizon)
+
+
+@router.get("/resilience/{country_code}")
+async def offline_resilience(
+    country_code: str,
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(get_current_user),
+):
+    return await platform.check_data_resilience(db, country_code)
+
+
+@router.get("/insights/{country_code}")
+async def page_insights(
+    country_code: str,
+    page: str = Query("overview"),
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(get_current_user),
+):
+    return await platform.generate_page_insights(db, country_code, page)
+
+
+@router.get("/narrative/{country_code}")
+async def economic_narrative(
+    country_code: str,
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(get_current_user),
+):
+    from sqlalchemy import select, desc
+    from app.models.prediction import Prediction
+    result = await db.execute(
+        select(Prediction).where(Prediction.country_code == country_code.upper())
+        .order_by(desc(Prediction.created_at)).limit(1)
+    )
+    pred = result.scalar_one_or_none()
+    if pred and pred.narrative:
+        return {"country_code": country_code.upper(), "narrative": pred.narrative}
+    return {
+        "country_code": country_code.upper(),
+        "narrative": await platform.generate_narrative(
+            db, country_code, pred.inflation_rate if pred else 8.0,
+            pred.trend_direction if pred else "stable",
+            pred.confidence_score if pred else 0.7,
+            pred.explainability if pred else {},
+        ),
+    }
+
+
+@router.post("/nlq")
+async def natural_language_query(
+    payload: dict,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    question = payload.get("question", "")
+    country_code = payload.get("country_code") or user.country or "NG"
+    if not question:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="question is required")
+    return await platform.answer_natural_language(db, question, country_code)
+
+
+@router.get("/explainability-pdf/{prediction_id}")
+async def explainability_pdf(
+    prediction_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(get_current_user),
+):
+    pdf_bytes = await platform.generate_explainability_pdf(db, prediction_id)
+    return StreamingResponse(
+        iter([pdf_bytes]),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=explainability_{prediction_id}.pdf"},
+    )
+
+
+@router.get("/models/versions")
+async def model_versions(
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(require_analyst),
+):
+    return await platform.list_model_versions(db)
+
+
+@router.post("/models/rollback/{model_id}")
+async def rollback_model(
+    model_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    _admin: User = Depends(require_admin),
+):
+    return await platform.rollback_model_version(db, model_id)
+
+
+@router.get("/experiments")
+async def list_experiments(
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(require_analyst),
+):
+    return await platform.list_experiments(db)
+
+
+@router.post("/experiments/compare")
+async def compare_experiments(
+    payload: dict,
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(require_analyst),
+):
+    ids = [uuid.UUID(i) for i in payload.get("experiment_ids", [])]
+    return await platform.compare_experiments(db, ids)
 
 
 # ── Export ───────────────────────────────────────────────────────────────────

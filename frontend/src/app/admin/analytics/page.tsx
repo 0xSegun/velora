@@ -22,6 +22,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
+import { ChartTooltipContent } from '@/components/charts/ChartTooltip';
 import { adminAPI, getAnalyticsWebSocketUrl } from '@/lib/api';
 import { CountryLabel } from '@/components/ui/CountryFlag';
 import EmptyState from '@/components/ui/EmptyState';
@@ -79,18 +80,6 @@ interface AnalyticsConfig {
   retention_days?: number;
   modules?: Record<string, boolean>;
 }
-
-const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: { name: string; value: number; color: string }[]; label?: string }) => {
-  if (!active || !payload) return null;
-  return (
-    <div className="rounded-xl border border-[var(--border-hover)] bg-[var(--bg-secondary)]/95 p-3 text-xs">
-      <p className="font-medium text-[var(--text-primary)]">{label}</p>
-      {payload.map((e, i) => (
-        <p key={i} style={{ color: e.color }}>{e.name}: {e.value}</p>
-      ))}
-    </div>
-  );
-};
 
 export default function AdminAnalyticsPage() {
   const [days, setDays] = useState(30);
@@ -273,7 +262,7 @@ export default function AdminAnalyticsPage() {
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border-primary)" />
                   <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
                   <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
-                  <Tooltip content={<CustomTooltip />} />
+                  <Tooltip content={<ChartTooltipContent />} />
                   <Area type="monotone" dataKey="count" name="Registrations" stroke="var(--chart-primary)" fill="var(--accent-faint)" />
                 </AreaChart>
               </ResponsiveContainer>
@@ -292,7 +281,7 @@ export default function AdminAnalyticsPage() {
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border-primary)" />
                   <XAxis dataKey="code" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
                   <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
-                  <Tooltip content={<CustomTooltip />} />
+                  <Tooltip content={<ChartTooltipContent />} />
                   <Bar dataKey="predictions" name="Predictions" fill="var(--chart-primary)" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -376,7 +365,7 @@ export default function AdminAnalyticsPage() {
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border-primary)" />
                 <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
                 <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
-                <Tooltip content={<CustomTooltip />} />
+                <Tooltip content={<ChartTooltipContent />} />
                 <Area type="monotone" dataKey="events" name="Events" stroke="var(--chart-primary)" fill="var(--accent-faint)" />
               </AreaChart>
             </ResponsiveContainer>

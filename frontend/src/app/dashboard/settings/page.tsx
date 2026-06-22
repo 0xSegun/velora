@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { COUNTRY_DIRECTORY } from "@/lib/countries";
 import { CountryFlag } from "@/components/ui/CountryFlag";
+import ToggleSwitch from "@/components/ui/ToggleSwitch";
 
 const countries = COUNTRY_DIRECTORY;
 
@@ -67,7 +68,7 @@ function InputField({
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
           disabled={disabled}
-          className="w-full bg-[var(--accent-faint)] border border-[var(--border-hover)] rounded-xl pl-10 pr-4 py-2.5 text-[var(--text-primary)] text-sm placeholder-slate-500 focus:border-[var(--border-active)] focus:ring-1 focus:ring-[var(--border-hover)] transition disabled:opacity-50 disabled:cursor-not-allowed"
+          className="app-input w-full rounded-xl pl-10 pr-4 py-2.5 text-[var(--text-primary)] text-sm placeholder-[var(--text-muted)] transition disabled:opacity-50 disabled:cursor-not-allowed"
         />
         {rightElement && (
           <div className="absolute right-3 top-1/2 -translate-y-1/2">
@@ -76,34 +77,6 @@ function InputField({
         )}
       </div>
     </div>
-  );
-}
-
-function ToggleSwitch({
-  id,
-  checked,
-  onChange,
-}: {
-  id: string;
-  checked: boolean;
-  onChange: (v: boolean) => void;
-}) {
-  return (
-    <button
-      id={id}
-      role="switch"
-      aria-checked={checked}
-      onClick={() => onChange(!checked)}
-      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-        checked ? "bg-neutral-700" : "bg-white/10"
-      }`}
-    >
-      <span
-        className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${
-          checked ? "translate-x-6" : "translate-x-1"
-        }`}
-      />
-    </button>
   );
 }
 
@@ -185,7 +158,7 @@ export default function SettingsPage() {
         >
           <div className="flex items-center gap-6">
             <div className="relative group">
-              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-neutral-600 to-neutral-500 flex items-center justify-center text-[var(--text-primary)] text-2xl font-bold shadow-[0_0_30px_rgba(255,255,255,0.08)]">
+              <div className="w-20 h-20 rounded-full bg-[var(--accent)] flex items-center justify-center text-white text-2xl font-bold shadow-glow">
                 {fullName
                   .split(" ")
                   .map((n) => n[0])
@@ -526,7 +499,7 @@ export default function SettingsPage() {
             id="save-settings"
             onClick={handleSave}
             disabled={saving}
-            className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-neutral-700 to-neutral-500 hover:from-neutral-600 hover:to-neutral-400 text-[var(--text-primary)] rounded-xl font-medium shadow-[0_0_20px_rgba(255,255,255,0.08)] transition disabled:opacity-50 disabled:cursor-not-allowed"
+            className="btn-primary btn-shine px-6 py-2.5 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {saving ? (
               <>

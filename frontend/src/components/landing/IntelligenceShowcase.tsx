@@ -74,7 +74,7 @@ export default function IntelligenceShowcase() {
           >
             <div className={i === 0 ? "flex-1" : ""}>
               <div className="flex items-start justify-between gap-4 mb-4">
-                <div className="w-11 h-11 rounded-xl glass-heavy flex items-center justify-center text-[var(--text-primary)] shrink-0">
+                <div className="w-11 h-11 rounded-xl bg-[var(--accent-faint)] border border-[var(--accent)]/20 flex items-center justify-center text-[var(--accent)] shrink-0">
                   <Icon size={20} />
                 </div>
                 <span className="text-[10px] uppercase tracking-widest text-[var(--text-faint)] px-2 py-1 rounded-full glass">
@@ -115,7 +115,7 @@ export default function IntelligenceShowcase() {
                           initial={{ width: 0 }}
                           animate={inView ? { width: `${bar.pct}%` } : {}}
                           transition={{ duration: 1, delay: 0.3 }}
-                          className="h-full rounded-full bg-[var(--text-secondary)]"
+                          className="h-full rounded-full bg-[var(--fin-positive)]"
                         />
                       </div>
                     </div>

@@ -17,6 +17,7 @@ import {
   X,
 } from "lucide-react";
 import { useGlobalSearch } from "@/hooks/useGlobalSearch";
+import { CountryFlag } from "@/components/ui/CountryFlag";
 import type { SearchResultType } from "@/types/search";
 
 const TYPE_ICONS: Record<SearchResultType, React.ElementType> = {
@@ -29,8 +30,11 @@ const TYPE_ICONS: Record<SearchResultType, React.ElementType> = {
   api_config: Plug,
 };
 
+import type { UserRole } from "@/lib/roles";
+
 interface GlobalSearchProps {
-  scope: "dashboard" | "admin";
+  scope: "dashboard" | "admin" | "analyst";
+  role?: UserRole | null;
   id?: string;
   placeholder?: string;
   className?: string;
@@ -40,6 +44,7 @@ interface GlobalSearchProps {
 
 export default function GlobalSearch({
   scope,
+  role,
   id,
   placeholder,
   className = "",
@@ -63,13 +68,15 @@ export default function GlobalSearch({
     error,
     isOpen,
     clear,
-  } = useGlobalSearch({ scope });
+  } = useGlobalSearch({ scope, role });
 
   const showPanel = focused && isOpen;
   const defaultPlaceholder =
     scope === "admin"
       ? "Search admin, users, APIs..."
-      : "Search countries, reports, pages...";
+      : scope === "analyst"
+        ? "Search analytics, research, models..."
+        : "Search forecasts, news, help...";
 
   useEffect(() => {
     setActiveIndex(-1);
@@ -222,6 +229,10 @@ export default function GlobalSearch({
                           const flatIndex = groupStart + index;
                           const Icon = TYPE_ICONS[item.type] ?? Search;
                           const isActive = flatIndex === activeIndex;
+                          const countryCode =
+                            item.type === "country" && item.subtitle
+                              ? item.subtitle.toUpperCase()
+                              : null;
                           return (
                             <li key={`${item.type}-${item.id}`}>
                               <Link
@@ -239,7 +250,15 @@ export default function GlobalSearch({
                                     : "text-[var(--text-secondary)] hover:bg-[var(--accent-faint)] hover:text-[var(--text-primary)]"
                                 }`}
                               >
-                                <Icon className="mt-0.5 h-4 w-4 shrink-0 text-[var(--text-muted)]" />
+                                {item.type === "country" && countryCode ? (
+                                  <CountryFlag
+                                    code={countryCode}
+                                    size="sm"
+                                    className="mt-0.5 shrink-0"
+                                  />
+                                ) : (
+                                  <Icon className="mt-0.5 h-4 w-4 shrink-0 text-[var(--text-muted)]" />
+                                )}
                                 <span className="min-w-0 flex-1">
                                   <span className="block truncate text-sm font-medium">
                                     {item.title}

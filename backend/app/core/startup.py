@@ -14,9 +14,20 @@ from app.config import get_settings
 from app.core.postgres import ensure_postgres_running
 from app.database import check_database_connection, init_db
 from app.services.email_service import _resolve_provider
-from app.services.currency_catalog_service import seed_exchangerate_countries
+from app.services.currency_catalog_service import (
+    seed_exchangerate_countries,
+    seed_world_countries,
+)
 from app.services.exchange_rate_service import ensure_default_config, validate_encryption_config
 from app.services.resend_service import ensure_default_config as ensure_default_resend_config
+from app.services.fred_service import ensure_default_config as ensure_default_fred_config
+from app.services.news_service import ensure_default_config as ensure_default_news_config
+from app.services.imf_service import ensure_default_config as ensure_default_imf_config
+from app.services.world_bank_service import ensure_default_config as ensure_default_world_bank_config
+from app.services.trading_economics_service import (
+    ensure_default_config as ensure_default_trading_economics_config,
+)
+from app.services.wikipedia_service import ensure_default_config as ensure_default_wikipedia_config
 from app.services.seed_service import (
     seed_admin_user,
     seed_default_countries,
@@ -103,11 +114,55 @@ async def bootstrap_database(db: AsyncSession) -> None:
 
     await seed_default_countries(db)
     await seed_exchangerate_countries(db)
+    await seed_world_countries(db)
     await seed_economic_data(db)
     await sync_countries_to_economic_data(db)
     await seed_intelligence_data(db)
     await seed_default_site_settings(db)
     await ensure_default_config(db)
     await ensure_default_resend_config(db)
+    await ensure_default_fred_config(db)
+    await ensure_default_news_config(db)
+    await ensure_default_imf_config(db)
+    await ensure_default_world_bank_config(db)
+    await ensure_default_trading_economics_config(db)
+    await ensure_default_wikipedia_config(db)
     await log_system_event(db, "info", "Application started", source="startup")
     await db.commit()
+
+    await _ensure_trained_model()
+
+
+async def _ensure_trained_model() -> None:
+    """Train the TS-Transformer on startup if no checkpoint exists."""
+    models_dir = BACKEND_ROOT / "models"
+    checkpoint = models_dir / "best_model.pt"
+    if checkpoint.exists():
+        try:
+            from app.services.ts_transformer_engine import reload_model
+            reload_model()
+            logger.info("Loaded existing TS-Transformer checkpoint")
+        except Exception as exc:
+            logger.warning("Could not load checkpoint: %s", exc)
+        return
+
+    data_csv = BACKEND_ROOT / "data" / "sample_economic_data.csv"
+    if not data_csv.exists():
+        try:
+            from data.generate_data import generate_economic_data
+            generate_economic_data()
+        except Exception as exc:
+            logger.warning("Could not generate training data: %s", exc)
+            return
+
+    try:
+        from ai.training.runner import run_training
+        result = await asyncio.to_thread(run_training)
+        from app.services.ts_transformer_engine import reload_model
+        reload_model()
+        logger.info(
+            "Auto-trained TS-Transformer — accuracy %.1f%%",
+            result.get("accuracy_pct", 0),
+        )
+    except Exception as exc:
+        logger.warning("Auto-training skipped: %s", exc)

@@ -26,6 +26,11 @@ import {
   Target,
   DollarSign,
   Mail,
+  LineChart,
+  Newspaper,
+  Landmark,
+  BookOpen,
+  Globe2,
 } from "lucide-react";
 
 interface AdminSidebarProps {
@@ -37,6 +42,12 @@ const platformItems = [
   { label: "Dashboard", icon: LayoutDashboard, href: "/admin" },
   { label: "Control Center", icon: SlidersHorizontal, href: "/admin/control" },
   { label: "API Configuration", icon: Plug, href: "/admin/api-config" },
+  { label: "FRED API Settings", icon: LineChart, href: "/admin/fred-api" },
+  { label: "News API Settings", icon: Newspaper, href: "/admin/news-api" },
+  { label: "IMF API Settings", icon: Landmark, href: "/admin/imf-api" },
+  { label: "World Bank API", icon: Globe2, href: "/admin/world-bank-api" },
+  { label: "Trading Economics API", icon: BarChart3, href: "/admin/trading-economics-api" },
+  { label: "Wikipedia API", icon: BookOpen, href: "/admin/wikipedia-api" },
   { label: "Exchange Rate API", icon: DollarSign, href: "/admin/exchange-rate-api" },
   { label: "Resend Email API", icon: Mail, href: "/admin/resend-email" },
   { label: "Economic Data", icon: Database, href: "/admin/economic-data" },
@@ -81,25 +92,25 @@ export default function AdminSidebar({
         <motion.div
           whileHover={{ x: 2 }}
           whileTap={{ scale: 0.98 }}
-          className={`group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${
+          className={`group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all border border-transparent ${
             active
-              ? "bg-[var(--accent-faint)] text-[var(--text-primary)]"
-              : "text-[var(--text-muted)] hover:bg-[var(--glass-bg)] hover:text-[var(--text-primary)]"
+              ? "nav-item-active border-[var(--accent)]/20"
+              : "text-[var(--text-muted)] hover:bg-[var(--accent-subtle)] hover:text-[var(--text-primary)]"
           }`}
         >
           {active && (
             <motion.div
               layoutId="admin-sidebar-active"
-              className="absolute left-0 top-1/2 h-6 w-[3px] -translate-y-1/2 rounded-r-full bg-[var(--text-primary)]"
+              className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-[var(--accent)]"
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
             />
           )}
 
           <Icon
             size={20}
-            className={`shrink-0 transition ${
+            className={`nav-icon shrink-0 transition ${
               active
-                ? "text-[var(--text-primary)]"
+                ? "text-[var(--accent)]"
                 : "text-[var(--text-faint)] group-hover:text-[var(--text-primary)]"
             }`}
           />
@@ -141,8 +152,8 @@ export default function AdminSidebar({
             // eslint-disable-next-line @next/next/no-img-element
             <img src={branding.logoUrl} alt="" className="h-9 w-9 shrink-0 rounded-xl object-contain" />
           ) : (
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--text-primary)] shadow-[var(--glow)]">
-              <Zap size={18} className="text-[var(--bg-primary)]" />
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--accent)] shadow-glow-sm">
+              <Zap size={18} className="text-white" />
             </div>
           )}
           {!collapsed && (
@@ -155,7 +166,7 @@ export default function AdminSidebar({
               <span className="text-lg font-bold text-[var(--text-primary)]">
                 {branding.siteName}
               </span>
-              <span className="rounded-md bg-[var(--accent-faint)] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">
+              <span className="rounded-md bg-[var(--accent-faint)] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[var(--accent)]">
                 Admin
               </span>
             </motion.div>

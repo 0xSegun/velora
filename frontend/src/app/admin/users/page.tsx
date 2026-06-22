@@ -7,6 +7,7 @@ import { adminAPI } from '@/lib/api';
 import { formatDate } from '@/lib/dates';
 import { CountryFlag, CountryLabel } from '@/components/ui/CountryFlag';
 import EmptyState from '@/components/ui/EmptyState';
+import PageLoadError from '@/components/ui/PageLoadError';
 
 interface AdminUser {
   id: string;
@@ -24,20 +25,30 @@ interface AdminUser {
 export default function UsersPage() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<'all' | string>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const perPage = 8;
 
-  useEffect(() => {
+  const loadUsers = () => {
+    setLoading(true);
+    setLoadError(false);
     void adminAPI
       .getUsers({ page: 1, per_page: 100 })
       .then(({ data }) => {
         const payload = data as { users?: AdminUser[] };
         setUsers(payload.users ?? []);
       })
-      .catch(() => setUsers([]))
+      .catch(() => {
+        setUsers([]);
+        setLoadError(true);
+      })
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadUsers();
   }, []);
 
   const filtered = useMemo(() => {
@@ -55,7 +66,24 @@ export default function UsersPage() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / perPage));
   const pageUsers = filtered.slice((currentPage - 1) * perPage, currentPage * perPage);
 
-  if (!loading && users.length === 0) {
+  if (loading) {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--border-primary)] border-t-[var(--accent)]" />
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <PageLoadError
+        title="Failed to load users"
+        onRetry={loadUsers}
+      />
+    );
+  }
+
+  if (users.length === 0) {
     return (
       <EmptyState
         icon={Users}
@@ -72,7 +100,7 @@ export default function UsersPage() {
           <h1 className="text-2xl font-bold text-[var(--text-primary)]">User Management</h1>
           <p className="text-sm text-[var(--text-muted)]">Manage platform accounts and roles.</p>
         </div>
-        <button className="inline-flex items-center gap-2 rounded-xl bg-[var(--text-primary)] px-4 py-2 text-sm font-medium text-[var(--bg-primary)]">
+        <button className="inline-flex items-center gap-2 rounded-xl bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white">
           <UserPlus size={16} /> Invite user
         </button>
       </div>

@@ -28,7 +28,7 @@ The project folder now contains **source code and configs only**. Dependencies a
 | **Empty placeholders** | `cache/`, `temp/`, `generated_reports/`, `dataset_archive/`, `external_storage/`, `old_models/`, `backup_archive/` |
 | **Dev-only docs** | `frontend/AGENTS.md`, `frontend/CLAUDE.md` |
 | **One-off scripts** | `patch_velora_branding_db.py`, `generate_currency_catalog.py`, `verify_intelligence.py`, `project_storage_audit.ps1` |
-| **Old audit artifacts** | `optimization/audit_*.json`, `PROJECT_OPTIMIZATION_REPORT.md`, `infinicast-deploy.zip` |
+| **Old audit artifacts** | `optimization/audit_*.json`, `PROJECT_OPTIMIZATION_REPORT.md`, `velora-deploy.zip` |
 
 ---
 

@@ -16,6 +16,7 @@ import {
   Square,
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   countriesAPI,
   economicDataAPI,
@@ -24,15 +25,18 @@ import {
   type ExchangeRateCountryData,
 } from "@/lib/api";
 import CountryComparePanel from "@/components/dashboard/CountryComparePanel";
-import { getCountryMeta } from "@/lib/countries";
+import { COUNTRY_DIRECTORY, getCountryMeta } from "@/lib/countries";
+import { getWorldCountry } from "@/lib/countryCatalog";
 import { CountryFlag } from "@/components/ui/CountryFlag";
 import { formatPercentage, getRiskColor } from "@/lib/utils";
 import CurrencyDisplay from "@/components/ui/CurrencyDisplay";
 import { formatCurrencyLabel } from "@/lib/currency";
 import { inflationSentiment, gdpSentiment, sentimentClass } from "@/lib/financialColors";
-import { MESSAGES } from "@/lib/feedback";
+import { MESSAGES, toast } from "@/lib/feedback";
+import { handleApiError } from "@/lib/errorHandler";
 import { formatDate } from "@/lib/dates";
 import EmptyState from "@/components/ui/EmptyState";
+import PageHeader from "@/components/ui/PageHeader";
 import type { Prediction } from "@/types/prediction";
 
 interface EconomicRecord {
@@ -51,6 +55,7 @@ interface CountryRow {
   code: string;
   name: string;
   flag: string;
+  region?: string | null;
   inflation_rate: number | null;
   cpi: number | null;
   gdp_growth: number | null;
@@ -77,6 +82,7 @@ function getTrendIcon(trend: CountryRow["trend"]) {
 }
 
 export default function CountriesPage() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState<"name" | "inflation" | "risk">("inflation");
@@ -87,6 +93,7 @@ export default function CountriesPage() {
   const [error, setError] = useState<string | null>(null);
   const [countryRows, setCountryRows] = useState<CountryRow[]>([]);
   const [detail, setDetail] = useState<CountryDetail | null>(null);
+  const [predicting, setPredicting] = useState(false);
 
   const loadCountries = useCallback(async () => {
     setLoading(true);
@@ -103,20 +110,22 @@ export default function CountriesPage() {
         economicByCode.set(record.country_code, record);
       }
 
-      const rows: CountryRow[] = countriesPayload.countries.map((country) => {
-        const econ = economicByCode.get(country.code);
-        const meta = getCountryMeta(country.code, country.name);
+      // Build full list from local directory for all countries, overlay API data
+      const rows: CountryRow[] = COUNTRY_DIRECTORY.map((meta) => {
+        const apiCountry = countriesPayload.countries.find((c: any) => c.code === meta.code);
+        const econ = economicByCode.get(meta.code);
         return {
-          code: country.code,
-          name: country.name,
-          flag: country.flag || meta.flag,
-          inflation_rate: econ?.inflation_rate ?? country.inflation_rate,
+          code: meta.code,
+          name: apiCountry?.name || meta.name,
+          flag: apiCountry?.flag || meta.flag,
+          region: apiCountry?.region ?? getWorldCountry(meta.code)?.region ?? null,
+          inflation_rate: econ?.inflation_rate ?? (apiCountry?.inflation_rate ?? null),
           cpi: econ?.cpi ?? null,
-          gdp_growth: econ?.gdp_growth ?? null,
-          interest_rate: econ?.interest_rate ?? country.interest_rate,
-          exchange_rate: country.exchange_rate ?? null,
-          data_date: econ?.data_date ?? country.updated_at,
-          trend: (country.exchange_rate_trend as CountryRow["trend"]) ?? null,
+          gdp_growth: econ?.gdp_growth ?? (apiCountry?.gdp ?? null),
+          interest_rate: econ?.interest_rate ?? (apiCountry?.interest_rate ?? null),
+          exchange_rate: econ?.exchange_rate ?? (apiCountry?.exchange_rate ?? null),
+          data_date: econ?.data_date ?? (apiCountry?.updated_at ?? null),
+          trend: (apiCountry?.exchange_rate_trend as CountryRow["trend"]) ?? null,
           risk: null,
           predicted_rate: null,
           deflation_probability: null,
@@ -269,12 +278,11 @@ export default function CountriesPage() {
   if (!loading && countryRows.length === 0) {
     return (
       <div className="max-w-6xl mx-auto space-y-6">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-          <h1 className="text-2xl font-bold text-[var(--text-primary)]">Country Analysis</h1>
-          <p className="text-sm text-[var(--text-muted)] mt-1">
-            Compare inflation metrics across countries
-          </p>
-        </motion.div>
+        <PageHeader
+          title="Country Analysis"
+          description="Compare inflation metrics across countries"
+          icon={Globe}
+        />
         <EmptyState
           variant="warning"
           title="No country data available"
@@ -294,12 +302,11 @@ export default function CountriesPage() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-        <h1 className="text-2xl font-bold text-[var(--text-primary)]">Country Analysis</h1>
-        <p className="text-sm text-[var(--text-muted)] mt-1">
-          Compare inflation metrics across countries
-        </p>
-      </motion.div>
+      <PageHeader
+        title="Country Analysis"
+        description="Compare inflation metrics across countries"
+        icon={Globe}
+      />
 
       {error && (
         <div className="flex items-center gap-2 rounded-xl border border-[var(--border-primary)] bg-[var(--accent-faint)] px-4 py-3 text-sm text-[var(--text-muted)]">
@@ -378,7 +385,9 @@ export default function CountriesPage() {
                       <h3 className="text-sm font-semibold text-[var(--text-primary)] truncate">
                         {c.name}
                       </h3>
-                      <p className="text-xs text-[var(--text-muted)]">{c.code}</p>
+                      {c.region ? (
+                        <p className="text-xs text-[var(--text-muted)]">{c.region}</p>
+                      ) : null}
                     </div>
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
@@ -585,14 +594,35 @@ export default function CountriesPage() {
                     </p>
                   )}
 
-                  <Link
-                    href={`/dashboard/predictions?country=${selected.code}`}
+                  <button
+                    type="button"
                     id="predict-selected-country"
-                    className="w-full mt-6 flex items-center justify-center gap-2 px-4 py-2.5 bg-[var(--accent-faint)] border border-[var(--border-hover)] text-[var(--text-primary)] rounded-xl text-sm font-medium hover:bg-[var(--glass-bg-hover)] transition"
+                    disabled={predicting}
+                    onClick={async () => {
+                      setPredicting(true);
+                      try {
+                        const { data } = await predictionsAPI.forecast({
+                          country_code: selected.code,
+                          forecast_horizon: 6,
+                          input_data: {},
+                        });
+                        toast.success(`Forecast ready for ${selected.name}`);
+                        router.push(`/dashboard/predictions/${data.id}`);
+                      } catch (err) {
+                        handleApiError(err, "Generate Prediction", MESSAGES.network.generic);
+                      } finally {
+                        setPredicting(false);
+                      }
+                    }}
+                    className="w-full mt-6 flex items-center justify-center gap-2 px-4 py-2.5 bg-[var(--accent)] text-white rounded-xl text-sm font-semibold hover:opacity-90 transition disabled:opacity-60"
                   >
-                    <Globe className="w-4 h-4" />
-                    Run Prediction
-                  </Link>
+                    {predicting ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Globe className="w-4 h-4" />
+                    )}
+                    {predicting ? "Generating..." : "Generate Prediction"}
+                  </button>
                 </>
               )}
             </motion.div>

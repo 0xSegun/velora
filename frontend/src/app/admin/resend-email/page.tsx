@@ -31,6 +31,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
+import { chartTooltipProps } from "@/components/charts/ChartTooltip";
 import {
   resendAPI,
   type ResendAuditLog,
@@ -714,14 +715,7 @@ export default function ResendEmailPage() {
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border-primary)" />
                 <XAxis dataKey="name" tick={{ fill: "var(--text-faint)", fontSize: 11 }} />
                 <YAxis tick={{ fill: "var(--text-faint)", fontSize: 11 }} allowDecimals={false} />
-                <Tooltip
-                  contentStyle={{
-                    background: "var(--bg-secondary)",
-                    border: "1px solid var(--border-primary)",
-                    borderRadius: 8,
-                    fontSize: 12,
-                  }}
-                />
+<Tooltip {...chartTooltipProps} />
                 <Bar dataKey="count" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>

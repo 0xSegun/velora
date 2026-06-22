@@ -8,6 +8,8 @@ $ErrorActionPreference = "Stop"
 $BackendRoot = Split-Path $PSScriptRoot -Parent
 Set-Location $BackendRoot
 
+& "$PSScriptRoot\start_postgres.ps1"
+
 if ($SetupDb) {
     & "$PSScriptRoot\setup_postgres.ps1"
     if ($LASTEXITCODE -ne 0) {

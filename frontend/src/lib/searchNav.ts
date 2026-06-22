@@ -8,26 +8,55 @@ export interface NavSearchItem {
   keywords?: string[];
 }
 
-export const DASHBOARD_NAV_ITEMS: NavSearchItem[] = [
+/** Simplified navigation for ordinary users */
+export const ORDINARY_NAV_ITEMS: NavSearchItem[] = [
   { id: "nav-overview", title: "Overview", href: "/dashboard", keywords: ["home", "dashboard"] },
   { id: "nav-predictions", title: "Predictions", href: "/dashboard/predictions", keywords: ["forecast", "inflation"] },
-  { id: "nav-intelligence", title: "Intelligence", href: "/dashboard/intelligence", keywords: ["risk", "news"] },
-  { id: "nav-explainability", title: "Explainability", href: "/dashboard/explainability", keywords: ["model", "transformer"] },
-  { id: "nav-scenarios", title: "Scenarios", href: "/dashboard/scenarios", keywords: ["simulation", "what-if"] },
-  { id: "nav-accuracy", title: "Accuracy", href: "/dashboard/accuracy", keywords: ["metrics", "performance"] },
-  { id: "nav-countries", title: "Countries", href: "/dashboard/countries", keywords: ["economy", "compare"] },
-  { id: "nav-research", title: "Research", href: "/dashboard/research", keywords: ["papers", "publications"] },
+  { id: "nav-countries", title: "My Countries", href: "/dashboard/countries", keywords: ["economy", "country"] },
+  { id: "nav-intelligence-hub", title: "Intelligence Hub", href: "/dashboard/intelligence-hub", keywords: ["intelligence", "forecast", "risk", "explainability"] },
+  { id: "nav-news", title: "Economic News", href: "/dashboard/news", keywords: ["news", "headlines"] },
   { id: "nav-reports", title: "Reports", href: "/dashboard/reports", keywords: ["pdf", "export"] },
   { id: "nav-notifications", title: "Notifications", href: "/dashboard/notifications", keywords: ["alerts"] },
+  { id: "nav-help", title: "Help Center", href: "/dashboard/help", keywords: ["learn", "education", "inflation"] },
   { id: "nav-profile", title: "Profile", href: "/dashboard/profile", keywords: ["account"] },
   { id: "nav-settings", title: "Settings", href: "/dashboard/settings", keywords: ["preferences"] },
-  { id: "nav-analytics", title: "Analytics", href: "/dashboard/analytics", keywords: ["charts", "data"] },
+];
+
+/** Professional workspace navigation for analysts */
+export const ANALYST_NAV_ITEMS: NavSearchItem[] = [
+  { id: "analyst-overview", title: "Overview", href: "/analyst", keywords: ["home", "intelligence"] },
+  { id: "analyst-intelligence-hub", title: "Intelligence Hub", href: "/analyst/intelligence-hub", keywords: ["intelligence", "backtest", "warnings", "regime", "nlq"] },
+  { id: "analyst-predictions", title: "Predictions", href: "/analyst/predictions", keywords: ["forecast", "inflation"] },
+  { id: "analyst-analytics", title: "Analytics", href: "/analyst/analytics", keywords: ["charts", "cpi", "gdp"] },
+  { id: "analyst-countries", title: "Countries", href: "/analyst/countries", keywords: ["economy", "compare"] },
+  { id: "analyst-events", title: "Economic Events", href: "/analyst/events", keywords: ["calendar", "events"] },
+  { id: "analyst-research", title: "Research Center", href: "/analyst/research", keywords: ["papers", "publications"] },
+  { id: "analyst-reports", title: "Reports", href: "/analyst/reports", keywords: ["pdf", "export"] },
+  { id: "analyst-scenarios", title: "Scenario Simulator", href: "/analyst/scenarios", keywords: ["simulation", "what-if"] },
+  { id: "analyst-accuracy", title: "Accuracy", href: "/analyst/accuracy", keywords: ["metrics", "performance"] },
+  { id: "analyst-explainability", title: "Explainable AI", href: "/analyst/explainability", keywords: ["model", "transformer", "attention"] },
+  { id: "analyst-models", title: "Model Performance", href: "/analyst/models", keywords: ["training", "ts-transformer"] },
+  { id: "analyst-data-sources", title: "Data Sources", href: "/analyst/data-sources", keywords: ["fred", "datasets"] },
+  { id: "analyst-api-status", title: "API Status", href: "/analyst/api-status", keywords: ["health", "integrations"] },
+  { id: "analyst-notifications", title: "Notifications", href: "/analyst/notifications", keywords: ["alerts"] },
+];
+
+/** @deprecated Use ORDINARY_NAV_ITEMS or ANALYST_NAV_ITEMS based on role */
+export const DASHBOARD_NAV_ITEMS: NavSearchItem[] = [
+  ...ORDINARY_NAV_ITEMS,
+  ...ANALYST_NAV_ITEMS.filter((item) => !item.href.startsWith("/analyst")),
 ];
 
 export const ADMIN_NAV_ITEMS: NavSearchItem[] = [
   { id: "admin-dashboard", title: "Admin Dashboard", href: "/admin", keywords: ["overview"] },
   { id: "admin-control", title: "Control Center", href: "/admin/control", keywords: ["profile", "security"] },
   { id: "admin-api", title: "API Configuration", href: "/admin/api-config", keywords: ["integrations"] },
+  { id: "admin-fred", title: "FRED API Settings", href: "/admin/fred-api", keywords: ["fred", "federal reserve", "cpi", "gdp", "economic indicators"] },
+  { id: "admin-news-api", title: "News API Settings", href: "/admin/news-api", keywords: ["news", "reuters", "bloomberg", "headlines", "newsapi"] },
+  { id: "admin-imf-api", title: "IMF API Settings", href: "/admin/imf-api", keywords: ["imf", "gdp", "inflation", "debt", "world economic outlook"] },
+  { id: "admin-world-bank-api", title: "World Bank API", href: "/admin/world-bank-api", keywords: ["world bank", "open data", "gdp", "inflation"] },
+  { id: "admin-trading-economics-api", title: "Trading Economics API", href: "/admin/trading-economics-api", keywords: ["trading economics", "macro", "indicators"] },
+  { id: "admin-wikipedia-api", title: "Wikipedia API", href: "/admin/wikipedia-api", keywords: ["wikipedia", "context", "economy", "central bank"] },
   { id: "admin-fx", title: "Exchange Rate API", href: "/admin/exchange-rate-api", keywords: ["currency", "forex"] },
   { id: "admin-economic", title: "Economic Data", href: "/admin/economic-data", keywords: ["fred", "sync"] },
   { id: "admin-auth", title: "Authentication", href: "/admin/authentication", keywords: ["oauth", "google"] },

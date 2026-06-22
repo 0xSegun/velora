@@ -5,7 +5,7 @@ Prediction ORM model — stores inflation forecast results.
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSON, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -50,6 +50,12 @@ class Prediction(Base):
     explainability: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     multi_horizon: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     confidence_bands: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    reliability_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    reliability_level: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    economic_regime: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    data_lineage: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    narrative: Mapped[str | None] = mapped_column(Text, nullable=True)
+    using_cached_data: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     # Relationships
     user = relationship("User", back_populates="predictions")

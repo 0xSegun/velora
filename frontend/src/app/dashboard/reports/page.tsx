@@ -13,9 +13,13 @@ import {
   Loader2,
   AlertCircle,
 } from "lucide-react";
-import { reportsAPI } from "@/lib/api";
+import { countriesAPI, reportsAPI } from "@/lib/api";
+import CountryFocusBar, { useActiveCountryCode } from "@/components/dashboard/CountryFocusBar";
+import CountrySelect from "@/components/ui/CountrySelect";
+import { useAuthStore } from "@/store/authStore";
+import type { CountryOption } from "@/lib/countryOptions";
 import { handleApiError } from "@/lib/errorHandler";
-import { MESSAGES } from "@/lib/feedback";
+import { MESSAGES, toast } from "@/lib/feedback";
 import type { Report } from "@/types/report";
 import { formatDate } from "@/lib/dates";
 import { CountryLabel } from "@/components/ui/CountryFlag";
@@ -32,11 +36,26 @@ const CATEGORY_FILTERS = [
 ] as const;
 
 export default function ReportsPage() {
+  const activeCountry = useActiveCountryCode();
+  const homeCountry = useAuthStore((s) => s.user?.country ?? "NG");
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
+  const [countries, setCountries] = useState<CountryOption[]>([]);
+  const [countriesLoading, setCountriesLoading] = useState(true);
+  const [generating, setGenerating] = useState(false);
+
+  // Create report form state (moved up for hooks rules)
+  const [showCreate, setShowCreate] = useState(false);
+  const [newReport, setNewReport] = useState({
+    title: "",
+    summary: "",
+    report_type: "custom",
+    country_code: "",
+  });
+  const [creating, setCreating] = useState(false);
 
   const filteredReports = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -77,6 +96,22 @@ export default function ReportsPage() {
     void fetchReports();
   }, [fetchReports]);
 
+  useEffect(() => {
+    countriesAPI
+      .list()
+      .then((data) => {
+        setCountries((data.countries ?? []) as CountryOption[]);
+      })
+      .catch(() => setCountries([]))
+      .finally(() => setCountriesLoading(false));
+  }, []);
+
+  useEffect(() => {
+    if (!newReport.country_code && activeCountry) {
+      setNewReport((prev) => ({ ...prev, country_code: activeCountry }));
+    }
+  }, [activeCountry, newReport.country_code]);
+
   if (loading) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center">
@@ -105,14 +140,96 @@ export default function ReportsPage() {
     );
   }
 
+  const handleCreateReport = async () => {
+    if (!newReport.title.trim()) return;
+    setCreating(true);
+    try {
+      await reportsAPI.create({
+        title: newReport.title,
+        summary: newReport.summary,
+        report_type: newReport.report_type,
+        country_code: newReport.country_code || undefined,
+        source: 'User Generated',
+      });
+      toast.success('Report created');
+      setShowCreate(false);
+      setNewReport({ title: '', summary: '', report_type: 'custom', country_code: '' });
+      await fetchReports();
+    } catch (err) {
+      handleApiError(err, 'Create Report');
+    } finally {
+      setCreating(false);
+    }
+  };
+
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
         <h1 className="text-2xl font-bold text-[var(--text-primary)]">Reports</h1>
         <p className="mt-1 text-sm text-[var(--text-muted)]">
-          Economic reports and analysis documents
+          Country-specific economic intelligence reports powered by IMF, FRED, and live news
         </p>
       </motion.div>
+
+      <CountryFocusBar label="Report country" />
+
+      {/* Generate intelligence report from live data */}
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          onClick={() => setShowCreate(!showCreate)}
+          className="rounded-xl border border-[var(--border-active)] bg-[var(--accent-faint)] px-4 py-2 text-sm font-medium"
+        >
+          {showCreate ? 'Cancel' : 'Custom Report'}
+        </button>
+        <button
+          onClick={async () => {
+            setGenerating(true);
+            try {
+              const { data } = await reportsAPI.generate({
+                country_code: activeCountry,
+                horizon_months: 6,
+                report_type: "monthly",
+              });
+              toast.success("Intelligence report generated");
+              if (data && typeof data === "object" && "id" in data) {
+                window.location.href = `/dashboard/reports/${(data as { id: string }).id}`;
+              } else {
+                await fetchReports();
+              }
+            } catch (err) {
+              handleApiError(err, "Generate Report");
+            } finally {
+              setGenerating(false);
+            }
+          }}
+          disabled={generating}
+          className="btn-primary rounded-xl px-4 py-2 text-sm disabled:opacity-60"
+        >
+          {generating ? "Generating…" : "Generate Country Intelligence Report"}
+        </button>
+      </div>
+
+      {showCreate && (
+        <div className="glass-card p-4 space-y-3">
+          <input className="app-input w-full" placeholder="Report title" value={newReport.title} onChange={e => setNewReport({...newReport, title: e.target.value})} />
+          <textarea className="app-input w-full" placeholder="Summary" value={newReport.summary} onChange={e => setNewReport({...newReport, summary: e.target.value})} />
+          <div className="flex gap-2">
+            <select className="app-input" value={newReport.report_type} onChange={e => setNewReport({...newReport, report_type: e.target.value})}>
+              {CATEGORY_FILTERS.filter(f=>f!=='all').map(f => <option key={f} value={f}>{f}</option>)}
+            </select>
+            <CountrySelect
+              countries={countries}
+              value={newReport.country_code || activeCountry || homeCountry}
+              onChange={(code) => setNewReport({ ...newReport, country_code: code })}
+              loading={countriesLoading}
+              className="min-w-[200px]"
+            />
+            <button onClick={handleCreateReport} disabled={creating} className="rounded-xl bg-[var(--accent)] px-4 text-white text-sm">
+              {creating ? 'Creating...' : 'Create'}
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative w-full sm:max-w-md">

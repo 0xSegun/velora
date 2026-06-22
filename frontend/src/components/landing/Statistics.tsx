@@ -19,7 +19,7 @@ export default function Statistics() {
           initial={{ opacity: 0, y: 24 }}
           animate={inView ? { opacity: 1, y: 0 } : {}}
           transition={{ duration: 0.6 }}
-          className="glass-panel rounded-3xl p-10 md:p-14"
+          className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-3xl p-10 md:p-14"
         >
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
             {statistics.items.map((stat, i) => (
@@ -30,7 +30,7 @@ export default function Statistics() {
                 animate={inView ? { opacity: 1, y: 0 } : {}}
                 transition={{ duration: 0.5, delay: i * 0.1 }}
               >
-                <span className="text-4xl md:text-5xl font-bold gradient-text">
+                <span className="text-4xl md:text-5xl font-extrabold text-[var(--text-primary)]">
                   {stat.value}
                 </span>
                 <p className="text-sm text-[var(--text-muted)] mt-2">

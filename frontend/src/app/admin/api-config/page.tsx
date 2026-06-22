@@ -25,6 +25,7 @@ import { formatDateTime } from "@/lib/dates";
 import { apiHealthSentiment, sentimentClass } from "@/lib/financialColors";
 import ConfirmDeleteModal from "@/components/ui/ConfirmDeleteModal";
 import EmptyState from "@/components/ui/EmptyState";
+import PlatformIntegrationsSection from "@/components/admin/PlatformIntegrationsSection";
 
 type ApiConfig = ApiConfigRecord;
 
@@ -374,7 +375,7 @@ export default function ApiConfigPage() {
             API Configuration Center
           </h1>
           <p className="mt-1 text-sm text-[var(--text-muted)]">
-            Manage external data sources, test connections, and sync reports
+            Unified view of all platform APIs plus custom external data sources
           </p>
         </div>
         <div className="flex gap-2">
@@ -401,6 +402,8 @@ export default function ApiConfigPage() {
           </button>
         </div>
       </motion.div>
+
+      <PlatformIntegrationsSection />
 
       {/* Alerts */}
       <AnimatePresence>
