@@ -4,6 +4,7 @@ Velora Application Configuration.
 Loads all environment variables using pydantic-settings BaseSettings.
 """
 
+import os
 import ssl
 from functools import lru_cache
 from urllib.parse import urlparse
@@ -16,7 +17,7 @@ class Settings(BaseSettings):
     """Application settings loaded from environment variables and .env file."""
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=".env" if os.getenv("APP_ENV", "production") != "production" else None,
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",

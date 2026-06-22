@@ -20,7 +20,7 @@ services:
       grep -v '^torch' requirements.txt > /tmp/requirements.no-torch.txt &&
       pip install -r /tmp/requirements.no-torch.txt &&
       alembic upgrade head
-    startCommand: python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    startCommand: python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1
     healthCheckPath: /
     envVars:
       - key: APP_NAME

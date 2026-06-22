@@ -10,14 +10,14 @@ import logging
 import math
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
-import torch
-import torch.nn as nn
 
-from ai.model.transformer import TSTransformer
 from ai.pipeline.preprocess import DEFAULT_FEATURE_COLS, DataPreprocessor, EVENT_FEATURE_DIM
+
+if TYPE_CHECKING:
+    from ai.model.transformer import TSTransformer
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +73,7 @@ FEATURE_LABELS = {
     "sentiment": "Market Sentiment",
 }
 
-_model: TSTransformer | None = None
+_model: Any = None
 _preprocessor: DataPreprocessor | None = None
 _model_loaded: bool = False
 _forecast_horizon: int = 6
@@ -97,6 +97,8 @@ def reload_model() -> bool:
         return False
 
     try:
+        import torch
+        from ai.model.transformer import TSTransformer
         from ai.pipeline.preprocess import DataPreprocessor
 
         checkpoint = torch.load(_CHECKPOINT_PATH, map_location="cpu", weights_only=False)
@@ -143,10 +145,12 @@ def reload_model() -> bool:
         return False
 
 
-def _get_model(max_horizon: int = 24) -> TSTransformer:
+def _get_model(max_horizon: int = 24) -> Any:
     global _model
     if _model is None:
         if not reload_model():
+            from ai.model.transformer import TSTransformer
+
             n_features = len(DEFAULT_FEATURE_COLS) + EVENT_FEATURE_DIM
             _model = TSTransformer(
                 n_features=n_features,
@@ -206,8 +210,9 @@ def build_sequence(
     input_data: dict[str, Any],
     events: list[dict] | None = None,
     sentiment_adj: float = 0.0,
-) -> torch.Tensor:
+) -> Any:
     """Build (1, seq_len, n_features) tensor for TS-Transformer."""
+    import torch
     event_feats = build_event_features(events or [])
     base_keys = _inference_feature_keys()
     seq: list[list[float]] = []
@@ -285,7 +290,7 @@ def _heuristic_base(input_data: dict[str, Any], event_feats: list[float]) -> flo
     return float(np.clip(base, 0.5, 45.0))
 
 
-def _extract_attention_map(model: TSTransformer) -> list[list[float]]:
+def _extract_attention_map(model: Any) -> list[list[float]]:
     """Pull attention weights from the first encoder layer."""
     try:
         layer = model.encoder.layers[0]
@@ -394,6 +399,8 @@ def run_ts_transformer_forecast(
     model_horizon_rates: list[float] | None = None
 
     try:
+        import torch
+
         with torch.no_grad():
             outputs = model(features)
             attention_map = _extract_attention_map(model)

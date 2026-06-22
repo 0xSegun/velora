@@ -6,7 +6,18 @@ Main FastAPI application with CORS, rate limiting, routers, and lifecycle events
 
 import asyncio
 import logging
+import sys
 from contextlib import asynccontextmanager
+
+# Configure stdout logging before heavy imports (Render captures stdout).
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
+    stream=sys.stdout,
+    force=True,
+)
+_boot_logger = logging.getLogger("app.boot")
+_boot_logger.info("Initializing Velora API...")
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -69,10 +80,16 @@ from app.services.wikipedia_scheduler import start_wikipedia_scheduler, stop_wik
 
 settings = get_settings()
 
-logging.basicConfig(
-    level=logging.DEBUG if settings.DEBUG else logging.INFO,
-    format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
+if settings.DEBUG:
+    logging.getLogger().setLevel(logging.DEBUG)
+
+_boot_logger.info(
+    "Settings loaded — env=%s database_url_set=%s db_host=%s",
+    settings.APP_ENV,
+    bool(settings.DATABASE_URL.strip()),
+    settings.database_host_label,
 )
+
 if not settings.DEBUG:
     setup_file_logging("logs", level=logging.INFO)
     prune_old_archives("logs/archive", keep_days=14)
