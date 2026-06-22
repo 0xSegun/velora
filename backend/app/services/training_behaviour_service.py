@@ -168,6 +168,7 @@ def _load_model_and_test_data(
         raise ValueError(f"Insufficient data for {country_code}")
 
     config = TrainingConfig().resolved_paths(_backend_root())
+    config.panel_training = False
     _, _, test_ds, preprocessor = prepare_datasets(df, config)
 
     checkpoint = load_checkpoint(ckpt_path, map_location="cpu")
@@ -304,13 +305,10 @@ def get_overall_backtest_performance() -> dict[str, Any]:
 
 def get_country_backtest_results() -> list[dict[str, Any]]:
     """Country-level backtest breakdown for bar/table charts."""
-    cached = _metrics_from_scaler_meta()
     results: list[dict[str, Any]] = []
     for code in SUPPORTED_BACKTEST_COUNTRIES:
         records = run_backtest_records(code)
         metrics = compute_accuracy_from_records(records)
-        if not records and cached:
-            metrics = cached
         results.append({
             "country_code": code,
             "country_name": COUNTRY_LABELS.get(code, code),

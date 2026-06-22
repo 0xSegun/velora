@@ -50,6 +50,8 @@ def run_backtest_records(
         if len(df) < config.window_size + config.forecast_horizon + 10:
             return []
 
+        # Evaluate each country on its own held-out split, not the pooled panel test set.
+        config.panel_training = False
         _, _, test_ds, preprocessor = prepare_datasets(df, config)
 
         checkpoint = load_checkpoint(ckpt_path, map_location="cpu")
