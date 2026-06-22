@@ -23,5 +23,5 @@ if __name__ == "__main__":
         f"  Epochs   : {result['epochs_trained']}\n"
         f"  Checkpoint: {result['checkpoint_path']}"
     )
-    if result["accuracy_pct"] < 75:
+    if result["accuracy_pct"] < 90 or result["r2"] <= 0:
         sys.exit(1)

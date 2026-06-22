@@ -13,6 +13,7 @@ from torch.utils.data import DataLoader
 
 from ai.model.transformer import TSTransformer
 from ai.training.config import TrainingConfig
+from ai.training.evaluate import ModelEvaluator
 from ai.training.runner import (
     _backend_root,
     load_country_dataframe,
@@ -65,37 +66,25 @@ def run_backtest_records(
         model.load_state_dict(checkpoint["model_state_dict"])
         model.eval()
 
-        loader = DataLoader(test_ds, batch_size=32, shuffle=False)
+        evaluator = ModelEvaluator(model, preprocessor=preprocessor)
+        series = evaluator.prediction_vs_actual(test_ds, batch_size=32)
+        preds = series["predictions"]
+        targets = series["actuals"]
+
         records: list[dict[str, Any]] = []
-
-        with torch.no_grad():
-            for batch_x, batch_y in loader:
-                outputs = model(batch_x)
-                preds = outputs["inflation_rate"].cpu().numpy()
-                targets = batch_y.numpy()
-
-                if preprocessor.target_scaler is not None:
-                    n, h = preds.shape
-                    preds = preprocessor.inverse_transform_target(
-                        preds.reshape(-1, 1)
-                    ).reshape(n, h)
-                    targets = preprocessor.inverse_transform_target(
-                        targets.reshape(-1, 1)
-                    ).reshape(n, h)
-
-                for i in range(len(preds)):
-                    pred_h1 = float(preds[i, 0])
-                    actual_h1 = float(targets[i, 0])
-                    err = abs(pred_h1 - actual_h1)
-                    records.append({
-                        "country_code": code,
-                        "predicted_value": round(pred_h1, 2),
-                        "actual_value": round(actual_h1, 2),
-                        "rmse": round(err, 3),
-                        "mae": round(err, 3),
-                        "mape": round(err / max(abs(actual_h1), 0.1) * 100, 2),
-                        "model_version": BACKTEST_MODEL_VERSION,
-                    })
+        for i in range(len(preds)):
+            pred_h1 = float(preds[i, 0])
+            actual_h1 = float(targets[i, 0])
+            err = abs(pred_h1 - actual_h1)
+            records.append({
+                "country_code": code,
+                "predicted_value": round(pred_h1, 2),
+                "actual_value": round(actual_h1, 2),
+                "rmse": round(err, 3),
+                "mae": round(err, 3),
+                "mape": round(err / max(abs(actual_h1), 0.1) * 100, 2),
+                "model_version": BACKTEST_MODEL_VERSION,
+            })
 
         return records[-max_records:]
     except Exception as exc:

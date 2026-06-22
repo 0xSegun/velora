@@ -78,6 +78,53 @@ class ModelEvaluator:
         self.model.eval()
         self.preprocessor = preprocessor
 
+    def _decode_predictions(
+        self,
+        preds_arr: np.ndarray,
+        dataset: InflationDataset,
+    ) -> np.ndarray:
+        """Map scaled model outputs back to absolute inflation rates."""
+        if self.preprocessor is not None:
+            n, h = preds_arr.shape
+            preds_arr = self.preprocessor.inverse_transform_target(
+                preds_arr.reshape(-1, 1)
+            ).reshape(n, h)
+
+        if (
+            self.preprocessor is not None
+            and getattr(self.preprocessor, "residual_mode", False)
+            and dataset.baselines is not None
+        ):
+            preds_arr = preds_arr + dataset.baselines[:, None]
+
+        return preds_arr
+
+    def _decode_targets(
+        self,
+        targets_arr: np.ndarray,
+        dataset: InflationDataset,
+    ) -> np.ndarray:
+        if dataset.absolute_targets is not None:
+            return dataset.absolute_targets
+        if (
+            self.preprocessor is not None
+            and getattr(self.preprocessor, "residual_mode", False)
+            and dataset.baselines is not None
+        ):
+            if self.preprocessor.target_scaler is not None:
+                n, h = targets_arr.shape
+                targets_arr = self.preprocessor.inverse_transform_target(
+                    targets_arr.reshape(-1, 1)
+                ).reshape(n, h)
+            return targets_arr + dataset.baselines[:, None]
+
+        if self.preprocessor is not None:
+            n, h = targets_arr.shape
+            return self.preprocessor.inverse_transform_target(
+                targets_arr.reshape(-1, 1)
+            ).reshape(n, h)
+        return targets_arr
+
     # ------------------------------------------------------------------
     # Core metrics
     # ------------------------------------------------------------------
@@ -141,15 +188,8 @@ class ModelEvaluator:
         preds_arr = np.concatenate(all_preds, axis=0)  # (N, horizon)
         targets_arr = np.concatenate(all_targets, axis=0)
 
-        # Inverse-scale if preprocessor available
-        if self.preprocessor is not None:
-            n, h = preds_arr.shape
-            preds_arr = self.preprocessor.inverse_transform_target(
-                preds_arr.reshape(-1, 1)
-            ).reshape(n, h)
-            targets_arr = self.preprocessor.inverse_transform_target(
-                targets_arr.reshape(-1, 1)
-            ).reshape(n, h)
+        preds_arr = self._decode_predictions(preds_arr, dataset)
+        targets_arr = self._decode_targets(targets_arr, dataset)
 
         # Aggregate over all horizons
         metrics = EvalMetrics(
@@ -203,14 +243,8 @@ class ModelEvaluator:
         preds = np.concatenate(preds_list, axis=0)
         actuals = np.concatenate(targets_list, axis=0)
 
-        if self.preprocessor is not None:
-            n, h = preds.shape
-            preds = self.preprocessor.inverse_transform_target(
-                preds.reshape(-1, 1)
-            ).reshape(n, h)
-            actuals = self.preprocessor.inverse_transform_target(
-                actuals.reshape(-1, 1)
-            ).reshape(n, h)
+        preds = self._decode_predictions(preds, dataset)
+        actuals = self._decode_targets(actuals, dataset)
 
         return {
             "predictions": preds,

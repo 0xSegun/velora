@@ -23,7 +23,13 @@ class InflationDataset(Dataset):
         targets: Target array of shape (num_samples, forecast_horizon).
     """
 
-    def __init__(self, features: np.ndarray, targets: np.ndarray) -> None:
+    def __init__(
+        self,
+        features: np.ndarray,
+        targets: np.ndarray,
+        baselines: np.ndarray | None = None,
+        absolute_targets: np.ndarray | None = None,
+    ) -> None:
         if len(features) != len(targets):
             raise ValueError(
                 f"Features ({len(features)}) and targets ({len(targets)}) "
@@ -32,6 +38,14 @@ class InflationDataset(Dataset):
 
         self.features = torch.FloatTensor(features)
         self.targets = torch.FloatTensor(targets)
+        self.baselines = (
+            np.asarray(baselines, dtype=np.float32) if baselines is not None else None
+        )
+        self.absolute_targets = (
+            np.asarray(absolute_targets, dtype=np.float32)
+            if absolute_targets is not None
+            else None
+        )
 
     def __len__(self) -> int:
         """Return the total number of samples."""

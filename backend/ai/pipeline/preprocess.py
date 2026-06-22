@@ -53,6 +53,8 @@ class DataPreprocessor:
         self.forecast_horizon = forecast_horizon
         self.feature_scaler: Optional[MinMaxScaler] = None
         self.target_scaler: Optional[MinMaxScaler] = None
+        self.residual_mode: bool = False
+        self.feature_columns: list[str] = list(DEFAULT_FEATURE_COLS)
 
     def load_csv(self, path: str, date_column: Optional[str] = "date") -> pd.DataFrame:
         """
@@ -277,6 +279,7 @@ class DataPreprocessor:
             "feature_columns": getattr(
                 self, "feature_columns", DEFAULT_FEATURE_COLS
             ),
+            "residual_mode": getattr(self, "residual_mode", False),
         }
         with open(path / "scaler_meta.json", "w", encoding="utf-8") as f:
             json.dump(meta, f, indent=2)
@@ -299,6 +302,8 @@ class DataPreprocessor:
                 meta = json.load(f)
             self.window_size = meta.get("window_size", self.window_size)
             self.forecast_horizon = meta.get("forecast_horizon", self.forecast_horizon)
+            self.feature_columns = meta.get("feature_columns", self.feature_columns)
+            self.residual_mode = meta.get("residual_mode", self.residual_mode)
 
     def save_scaler(self, scaler: MinMaxScaler, path: str) -> None:
         """

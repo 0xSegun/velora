@@ -17,16 +17,19 @@ class TrainingConfig:
 
     # Training
     batch_size: int = 32
-    learning_rate: float = 2e-4
-    num_epochs: int = 80
-    early_stopping_patience: int = 12
+    learning_rate: float = 1e-4
+    num_epochs: int = 120
+    early_stopping_patience: int = 18
 
     # Data
-    window_size: int = 12
+    window_size: int = 24
     forecast_horizon: int = 1
-    n_features: int = 13  # 8 macro + inflation + 4 event (zeroed during training)
-    test_ratio: float = 0.2
+    n_features: int = 20  # macro + inflation + engineered lags + event dims
+    test_ratio: float = 0.15
     val_ratio: float = 0.15
+    residual_mode: bool = True
+    panel_training: bool = True
+    panel_countries: tuple[str, ...] = ("NG", "US", "GB", "GH", "ZA")
 
     # Model architecture
     d_model: int = 128
@@ -42,10 +45,10 @@ class TrainingConfig:
 
     # Multi-task loss weights
     loss_weight_inflation: float = 1.0
-    loss_weight_deflation: float = 0.05
-    loss_weight_trend: float = 0.05
-    loss_weight_confidence: float = 0.02
-    loss_weight_risk: float = 0.02
+    loss_weight_deflation: float = 0.01
+    loss_weight_trend: float = 0.01
+    loss_weight_confidence: float = 0.005
+    loss_weight_risk: float = 0.005
 
     # DataLoader
     num_workers: int = 0

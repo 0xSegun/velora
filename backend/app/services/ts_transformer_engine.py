@@ -206,6 +206,42 @@ def _inference_feature_keys() -> list[str]:
     return list(DEFAULT_FEATURE_COLS)
 
 
+def _inflation_series(input_data: dict[str, Any], window_size: int) -> list[float]:
+    """Build a recent inflation history for lag feature construction."""
+    val = input_data.get("inflation_rate")
+    if isinstance(val, (list, tuple)) and len(val) >= window_size:
+        return [float(v) for v in val[-window_size:]]
+    latest = _latest_inflation_baseline(input_data)
+    # Synthetic backward walk when only the latest observation is available.
+    return [round(latest * (1.0 - 0.004 * (window_size - 1 - i)), 4) for i in range(window_size)]
+
+
+def _engineered_feature_value(
+    key: str,
+    step: int,
+    inflation_hist: list[float],
+) -> float:
+    if key == "inflation_lag1":
+        return inflation_hist[step - 1] if step > 0 else inflation_hist[step]
+    if key == "inflation_lag3":
+        return inflation_hist[step - 3] if step >= 3 else inflation_hist[0]
+    if key == "inflation_lag6":
+        return inflation_hist[step - 6] if step >= 6 else inflation_hist[0]
+    if key == "inflation_lag12":
+        return inflation_hist[step - 12] if step >= 12 else inflation_hist[0]
+    if key == "inflation_ma3":
+        start = max(0, step - 2)
+        return float(np.mean(inflation_hist[start : step + 1]))
+    if key == "inflation_ma6":
+        start = max(0, step - 5)
+        return float(np.mean(inflation_hist[start : step + 1]))
+    if key == "inflation_momentum":
+        if step == 0:
+            return 0.0
+        return inflation_hist[step] - inflation_hist[step - 1]
+    return 0.0
+
+
 def build_sequence(
     input_data: dict[str, Any],
     events: list[dict] | None = None,
@@ -216,6 +252,7 @@ def build_sequence(
     event_feats = build_event_features(events or [])
     base_keys = _inference_feature_keys()
     seq: list[list[float]] = []
+    inflation_hist = _inflation_series(input_data, WINDOW_SIZE)
 
     use_trained_scaler = (
         _model_loaded
@@ -223,31 +260,34 @@ def build_sequence(
         and _preprocessor.feature_scaler is not None
     )
 
+    default_map = {
+        "cpi": 300.0,
+        "gdp_growth": 3.0,
+        "interest_rate": 15.0,
+        "exchange_rate": 400.0,
+        "oil_price": 75.0,
+        "gov_spending": 500.0,
+        "employment_rate": 90.0,
+        "money_supply": 5000.0,
+        "inflation_rate": 15.0,
+    }
+
     for step in range(WINDOW_SIZE):
         decay = 1.0 - (WINDOW_SIZE - 1 - step) * 0.02
         row: list[float] = []
         for k in base_keys:
-            if k == "inflation_rate":
-                val = input_data.get("inflation_rate")
-                if val is None:
-                    val = (input_data.get("cpi") or 300.0) / 30.0
+            if k.startswith("inflation_") and k != "inflation_rate":
+                val = _engineered_feature_value(k, step, inflation_hist)
+            elif k == "inflation_rate":
+                val = inflation_hist[step]
             else:
                 val = input_data.get(k)
             if use_trained_scaler:
-                default_map = {
-                    "cpi": 300.0,
-                    "gdp_growth": 3.0,
-                    "interest_rate": 15.0,
-                    "exchange_rate": 400.0,
-                    "oil_price": 75.0,
-                    "gov_spending": 500.0,
-                    "employment_rate": 90.0,
-                    "money_supply": 5000.0,
-                    "inflation_rate": 15.0,
-                }
                 row.append(float(val if val is not None else default_map.get(k, 0.0)))
             else:
                 if k == "inflation_rate":
+                    row.append(_normalise(val, "cpi") * decay)
+                elif k.startswith("inflation_"):
                     row.append(_normalise(val, "cpi") * decay)
                 else:
                     row.append(_normalise(val, k) * decay)
@@ -258,7 +298,12 @@ def build_sequence(
     n_base = len(base_keys)
 
     if use_trained_scaler:
-        raw[:, :n_base] = _preprocessor.feature_scaler.transform(raw[:, :n_base])
+        import pandas as pd
+
+        scaled = _preprocessor.feature_scaler.transform(
+            pd.DataFrame(raw[:, :n_base], columns=base_keys)
+        )
+        raw[:, :n_base] = scaled
 
     tensor = torch.tensor([raw], dtype=torch.float32)
 
@@ -266,6 +311,21 @@ def build_sequence(
         tensor = tensor + sentiment_adj * 0.05
 
     return tensor
+
+
+def _latest_inflation_baseline(input_data: dict[str, Any]) -> float:
+    """Most recent observed inflation — persistence baseline for residual models."""
+    val = input_data.get("inflation_rate")
+    if isinstance(val, (list, tuple)) and val:
+        return float(val[-1])
+    if val is not None:
+        return float(val)
+    cpi = input_data.get("cpi")
+    if isinstance(cpi, (list, tuple)) and cpi:
+        return float(cpi[-1]) / 30.0
+    if cpi is not None:
+        return float(cpi) / 30.0
+    return 15.0
 
 
 def _heuristic_base(input_data: dict[str, Any], event_feats: list[float]) -> float:
@@ -412,6 +472,9 @@ def run_ts_transformer_forecast(
                 raw_rates = _preprocessor.inverse_transform_target(
                     raw_rates.reshape(-1, 1)
                 ).reshape(n)
+                if getattr(_preprocessor, "residual_mode", False):
+                    baseline = _latest_inflation_baseline(input_data)
+                    raw_rates = raw_rates + baseline
                 model_horizon_rates = [float(np.clip(r, 0.1, 50.0)) for r in raw_rates]
                 h_idx = min(primary_horizon - 1, len(model_horizon_rates) - 1)
                 inflation_rate = round(model_horizon_rates[h_idx], 2)

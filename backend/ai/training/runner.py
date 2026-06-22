@@ -29,8 +29,10 @@ from ai.training.trainer import Trainer
 
 logger = logging.getLogger(__name__)
 
-# Core macro features plus lagged inflation (strongest predictor)
-TRAINING_FEATURE_COLS = [*DEFAULT_FEATURE_COLS, "inflation_rate"]
+from ai.training.features import enrich_dataframe, get_training_feature_cols
+
+# Core macro features plus autoregressive inflation signals
+TRAINING_FEATURE_COLS = get_training_feature_cols()
 
 # CSV column aliases → model feature names
 _COLUMN_ALIASES: dict[str, str] = {
@@ -103,12 +105,31 @@ def load_country_dataframe(country_code: str) -> pd.DataFrame | None:
         for col, val in defaults.items():
             if col not in raw.columns:
                 raw[col] = val
+        raw = _upsample_to_monthly(raw)
 
     if raw.empty:
         return None
 
     raw = _normalize_dataframe(raw)
-    return preprocessor.handle_missing(raw)
+    raw = enrich_dataframe(preprocessor.handle_missing(raw))
+    return raw
+
+
+def _upsample_to_monthly(df: pd.DataFrame) -> pd.DataFrame:
+    """Interpolate sparse macro series to monthly frequency for sequence building."""
+    if "date" not in df.columns or len(df) < 4:
+        return df
+
+    work = df.copy()
+    work["date"] = pd.to_datetime(work["date"])
+    work = work.sort_values("date").set_index("date")
+    numeric = work.select_dtypes(include=[np.number]).columns.tolist()
+    monthly = work[numeric].resample("MS").interpolate(method="linear")
+    monthly = monthly.reset_index()
+    for col in df.columns:
+        if col not in monthly.columns and col != "date":
+            monthly[col] = df[col].iloc[0]
+    return monthly
 
 
 def load_training_dataframe(
@@ -136,7 +157,7 @@ def load_training_dataframe(
         raw = preprocessor.load_csv(str(path))
 
     raw = _normalize_dataframe(raw)
-    processed = preprocessor.handle_missing(raw)
+    processed = enrich_dataframe(preprocessor.handle_missing(raw))
     if fred_df is not None:
         from app.services.fred_service import merge_fred_with_dataset
 
@@ -148,57 +169,204 @@ def prepare_datasets(
     df: pd.DataFrame,
     config: TrainingConfig,
 ) -> tuple[InflationDataset, InflationDataset, InflationDataset, DataPreprocessor]:
-    """
-    Build train / val / test datasets and fitted preprocessor.
-
-    Returns
-    -------
-    train_dataset, val_dataset, test_dataset, preprocessor
-    """
+    """Build train / val / test datasets and fitted preprocessor."""
+    if config.panel_training:
+        return _prepare_panel_datasets(config)
     preprocessor = DataPreprocessor(
         window_size=config.window_size,
         forecast_horizon=config.forecast_horizon,
     )
-    preprocessor.feature_columns = TRAINING_FEATURE_COLS
-
-    feature_df = df[TRAINING_FEATURE_COLS].copy()
-    feature_df, preprocessor.feature_scaler = preprocessor.normalize(
-        feature_df, TRAINING_FEATURE_COLS
-    )
+    feature_cols = [c for c in TRAINING_FEATURE_COLS if c in df.columns]
+    preprocessor.feature_columns = feature_cols
+    config.n_features = len(feature_cols) + EVENT_FEATURE_DIM
+    preprocessor.residual_mode = config.residual_mode
 
     inflation = df["inflation_rate"].values.astype(np.float64)
-    preprocessor.fit_target_scaler(inflation.reshape(-1, 1))
-
-    # Append zero event features for alignment with inference (8 + 4 = 12)
-    n_rows = len(feature_df)
+    n_rows = len(df)
     event_zeros = np.zeros((n_rows, EVENT_FEATURE_DIM), dtype=np.float32)
+
+    # Determine split sizes from raw timeline before scaling
+    total_length = n_rows - config.window_size - config.forecast_horizon + 1
+    test_size = max(1, int(total_length * config.test_ratio))
+    val_size = max(1, int(total_length * config.val_ratio))
+    train_end = total_length - test_size - val_size
+    train_feature_end = train_end + config.window_size
+
+    train_rows = df[feature_cols].iloc[:train_feature_end].copy()
+    _, preprocessor.feature_scaler = preprocessor.normalize(train_rows, feature_cols)
+    scaled_features = preprocessor.feature_scaler.transform(df[feature_cols])
     feature_matrix = np.hstack(
-        [feature_df.values.astype(np.float32), event_zeros]
+        [scaled_features.astype(np.float32), event_zeros]
     )
 
-    X, y = preprocessor.create_sequences_from_features(
-        feature_matrix,
-        inflation,
+    X, y_abs, baselines = _build_sequence_arrays(
+        feature_matrix=feature_matrix,
+        inflation=inflation,
         window_size=config.window_size,
         forecast_horizon=config.forecast_horizon,
     )
-    y = preprocessor.transform_target(y)
 
-    # Temporal split: train | val | test
-    n = len(X)
-    test_size = max(1, int(n * config.test_ratio))
-    val_size = max(1, int(n * config.val_ratio))
-    train_end = n - test_size - val_size
-
-    X_train, y_train = X[:train_end], y[:train_end]
-    X_val, y_val = X[train_end : train_end + val_size], y[train_end : train_end + val_size]
-    X_test, y_test = X[train_end + val_size :], y[train_end + val_size :]
+    y_model = (y_abs - baselines[:, None]) if config.residual_mode else y_abs.copy()
+    train_targets = y_model[:train_end].reshape(-1, 1)
+    preprocessor.fit_target_scaler(train_targets)
+    y_scaled = preprocessor.transform_target(y_model)
 
     return (
-        InflationDataset(X_train, y_train),
-        InflationDataset(X_val, y_val),
-        InflationDataset(X_test, y_test),
+        InflationDataset(X[:train_end], y_scaled[:train_end], baselines[:train_end]),
+        InflationDataset(
+            X[train_end : train_end + val_size],
+            y_scaled[train_end : train_end + val_size],
+            baselines[train_end : train_end + val_size],
+        ),
+        InflationDataset(
+            X[train_end + val_size :],
+            y_scaled[train_end + val_size :],
+            baselines[train_end + val_size :],
+            absolute_targets=y_abs[train_end + val_size :],
+        ),
         preprocessor,
+    )
+
+
+def _prepare_panel_datasets(
+    config: TrainingConfig,
+) -> tuple[InflationDataset, InflationDataset, InflationDataset, DataPreprocessor]:
+    """Build pooled train/val/test sets across supported countries."""
+    preprocessor = DataPreprocessor(
+        window_size=config.window_size,
+        forecast_horizon=config.forecast_horizon,
+    )
+    reference = load_country_dataframe("NG")
+    if reference is None:
+        raise ValueError("Nigeria reference data unavailable for panel training")
+
+    feature_cols = [c for c in TRAINING_FEATURE_COLS if c in reference.columns]
+    preprocessor.feature_columns = feature_cols
+    config.n_features = len(feature_cols) + EVENT_FEATURE_DIM
+    preprocessor.residual_mode = config.residual_mode
+
+    country_frames: list[tuple[str, pd.DataFrame, int, int, int]] = []
+    feature_train_frames: list[pd.DataFrame] = []
+
+    for code in config.panel_countries:
+        df = load_country_dataframe(code)
+        if df is None:
+            continue
+        cols = [c for c in feature_cols if c in df.columns]
+        n_rows = len(df)
+        total_length = n_rows - config.window_size - config.forecast_horizon + 1
+        if total_length < 12:
+            continue
+        test_size = max(1, int(total_length * config.test_ratio))
+        val_size = max(1, int(total_length * config.val_ratio))
+        train_end = total_length - test_size - val_size
+        country_frames.append((code, df, train_end, val_size, test_size))
+        feature_train_frames.append(df[cols].iloc[: train_end + config.window_size])
+
+    if not country_frames:
+        raise ValueError("No panel training data available")
+
+    panel_train_features = pd.concat(feature_train_frames, ignore_index=True)
+    _, preprocessor.feature_scaler = preprocessor.normalize(panel_train_features, feature_cols)
+
+    train_X, train_y, train_b = [], [], []
+    val_X, val_y, val_b = [], [], []
+    test_X, test_y, test_b, test_abs = [], [], [], []
+
+    for _code, df, train_end, val_size, _test_size in country_frames:
+        cols = [c for c in feature_cols if c in df.columns]
+        n_rows = len(df)
+        event_zeros = np.zeros((n_rows, EVENT_FEATURE_DIM), dtype=np.float32)
+        scaled = preprocessor.feature_scaler.transform(df[cols])
+        matrix = np.hstack([scaled.astype(np.float32), event_zeros])
+        inflation = df["inflation_rate"].values.astype(np.float64)
+        X, y_abs, baselines = _build_sequence_arrays(
+            feature_matrix=matrix,
+            inflation=inflation,
+            window_size=config.window_size,
+            forecast_horizon=config.forecast_horizon,
+        )
+        y_model = (y_abs - baselines[:, None]) if config.residual_mode else y_abs.copy()
+
+        train_X.append(X[:train_end])
+        train_y.append(y_model[:train_end])
+        train_b.append(baselines[:train_end])
+        val_X.append(X[train_end : train_end + val_size])
+        val_y.append(y_model[train_end : train_end + val_size])
+        val_b.append(baselines[train_end : train_end + val_size])
+        test_X.append(X[train_end + val_size :])
+        test_y.append(y_model[train_end + val_size :])
+        test_b.append(baselines[train_end + val_size :])
+        test_abs.append(y_abs[train_end + val_size :])
+
+    X_train = np.concatenate(train_X, axis=0)
+    y_train = np.concatenate(train_y, axis=0)
+    b_train = np.concatenate(train_b, axis=0)
+    X_val = np.concatenate(val_X, axis=0)
+    y_val = np.concatenate(val_y, axis=0)
+    b_val = np.concatenate(val_b, axis=0)
+    X_test = np.concatenate(test_X, axis=0)
+    y_test = np.concatenate(test_y, axis=0)
+    b_test = np.concatenate(test_b, axis=0)
+    y_abs_test = np.concatenate(test_abs, axis=0)
+
+    preprocessor.fit_target_scaler(y_train.reshape(-1, 1))
+    return (
+        InflationDataset(X_train, preprocessor.transform_target(y_train), b_train),
+        InflationDataset(X_val, preprocessor.transform_target(y_val), b_val),
+        InflationDataset(
+            X_test,
+            preprocessor.transform_target(y_test),
+            b_test,
+            absolute_targets=y_abs_test,
+        ),
+        preprocessor,
+    )
+
+
+def _build_sequence_arrays(
+    df: pd.DataFrame | None = None,
+    feature_cols: list[str] | None = None,
+    inflation: np.ndarray | None = None,
+    window_size: int = 24,
+    forecast_horizon: int = 1,
+    event_zeros: np.ndarray | None = None,
+    *,
+    feature_matrix: np.ndarray | None = None,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Create model inputs, absolute targets, and persistence baselines."""
+    if feature_matrix is None:
+        if df is None or feature_cols is None or inflation is None:
+            raise ValueError("feature_matrix or (df, feature_cols, inflation) required")
+        matrix = np.hstack(
+            [df[feature_cols].values.astype(np.float32), event_zeros]
+        )
+        inflation_series = inflation
+    else:
+        matrix = feature_matrix
+        if inflation is None:
+            raise ValueError("inflation required when using feature_matrix")
+        inflation_series = inflation
+
+    total_length = len(matrix) - window_size - forecast_horizon + 1
+    if total_length <= 0:
+        raise ValueError("Insufficient rows for sequence construction")
+
+    X: list[np.ndarray] = []
+    y_abs: list[np.ndarray] = []
+    baselines: list[float] = []
+
+    for i in range(total_length):
+        X.append(matrix[i : i + window_size])
+        y_abs.append(
+            inflation_series[i + window_size : i + window_size + forecast_horizon]
+        )
+        baselines.append(float(inflation_series[i + window_size - 1]))
+
+    return (
+        np.array(X, dtype=np.float32),
+        np.array(y_abs, dtype=np.float32),
+        np.array(baselines, dtype=np.float32),
     )
 
 

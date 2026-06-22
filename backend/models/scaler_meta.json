@@ -1,5 +1,5 @@
 {
-  "window_size": 12,
+  "window_size": 24,
   "forecast_horizon": 1,
   "feature_columns": [
     "cpi",
@@ -10,6 +10,14 @@
     "gov_spending",
     "employment_rate",
     "money_supply",
-    "inflation_rate"
-  ]
+    "inflation_rate",
+    "inflation_lag1",
+    "inflation_lag3",
+    "inflation_lag6",
+    "inflation_lag12",
+    "inflation_ma3",
+    "inflation_ma6",
+    "inflation_momentum"
+  ],
+  "residual_mode": true
 }
