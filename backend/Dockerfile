@@ -35,8 +35,9 @@ COPY ai ./ai
 COPY alembic ./alembic
 COPY alembic.ini .
 COPY data ./data
+COPY models ./models
 
-RUN mkdir -p models generated_pdfs uploads logs \
+RUN mkdir -p generated_pdfs uploads logs \
     && chown -R velora:velora /app
 
 USER velora
