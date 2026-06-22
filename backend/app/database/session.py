@@ -21,11 +21,14 @@ settings = get_settings()
 engine = create_async_engine(
     settings.effective_database_url,
     echo=settings.DEBUG,
-    pool_size=20,
-    max_overflow=10,
+    connect_args=settings.database_connect_args,
+    pool_size=5 if settings.is_production else 20,
+    max_overflow=5 if settings.is_production else 10,
     pool_pre_ping=True,
     pool_recycle=3600,
 )
+
+logger.info("Database target host: %s", settings.database_host_label)
 
 async_session_factory = async_sessionmaker(
     engine,

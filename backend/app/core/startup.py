@@ -74,7 +74,9 @@ def run_alembic_migrations() -> bool:
         return False
 
 
-async def _wait_for_database(retries: int = 10, delay: float = 1.0) -> bool:
+async def _wait_for_database(retries: int | None = None, delay: float = 2.0) -> bool:
+    if retries is None:
+        retries = 30 if settings.APP_ENV == "production" else 10
     for attempt in range(retries):
         if await check_database_connection():
             return True

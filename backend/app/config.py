@@ -4,9 +4,11 @@ Velora Application Configuration.
 Loads all environment variables using pydantic-settings BaseSettings.
 """
 
+import ssl
 from functools import lru_cache
+from urllib.parse import urlparse
 
-from pydantic import computed_field
+from pydantic import computed_field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -88,6 +90,23 @@ class Settings(BaseSettings):
     def effective_jwt_secret(self) -> str:
         return self.JWT_SECRET_KEY or self.JWT_SECRET
 
+    @model_validator(mode="after")
+    def require_database_url_in_production(self) -> "Settings":
+        if self.is_production and not self.DATABASE_URL.strip():
+            raise ValueError(
+                "DATABASE_URL is required in production. On Render, link velora-db to "
+                "velora-api (Environment → Add → From Database → velora-db → "
+                "Internal Connection String)."
+            )
+        return self
+
+    @staticmethod
+    def _normalize_sync_database_url(url: str) -> str:
+        """Normalize postgres URLs for psycopg2/Alembic."""
+        if url.startswith("postgres://"):
+            return url.replace("postgres://", "postgresql://", 1)
+        return url.replace("postgresql+asyncpg://", "postgresql://", 1)
+
     @staticmethod
     def _normalize_async_database_url(url: str) -> str:
         """Convert Render/Heroku postgres URLs to asyncpg SQLAlchemy format."""
@@ -100,8 +119,8 @@ class Settings(BaseSettings):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def effective_database_url(self) -> str:
-        if self.DATABASE_URL:
-            return self._normalize_async_database_url(self.DATABASE_URL)
+        if self.DATABASE_URL.strip():
+            return self._normalize_async_database_url(self.DATABASE_URL.strip())
         return (
             f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
             f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
@@ -113,14 +132,31 @@ class Settings(BaseSettings):
         """Sync URL for Alembic migrations (psycopg2)."""
         from urllib.parse import quote_plus
 
-        if self.DATABASE_URL:
-            return self.DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://")
+        if self.DATABASE_URL.strip():
+            return self._normalize_sync_database_url(self.DATABASE_URL.strip())
         password = quote_plus(self.POSTGRES_PASSWORD)
         user = quote_plus(self.POSTGRES_USER)
         return (
             f"postgresql://{user}:{password}"
             f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
         )
+
+    @property
+    def database_host_label(self) -> str:
+        """Safe host label for logs (no credentials)."""
+        if self.DATABASE_URL.strip():
+            return urlparse(self._normalize_sync_database_url(self.DATABASE_URL.strip())).hostname or "unknown"
+        return self.POSTGRES_HOST
+
+    @property
+    def database_connect_args(self) -> dict:
+        """asyncpg SSL settings for Render external Postgres URLs."""
+        if not self.DATABASE_URL.strip():
+            return {}
+        host = self.database_host_label or ""
+        if host.endswith(".render.com"):
+            return {"ssl": ssl.create_default_context()}
+        return {}
 
     @property
     def is_production(self) -> bool:
