@@ -3,8 +3,7 @@ import type { Notification } from "@/store/dashboardStore";
 import type { SearchResponse } from "@/types/search";
 import { logError } from "@/lib/errorHandler";
 import { MESSAGES, toast } from "@/lib/feedback";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+import { API_URL } from "@/lib/apiUrl";
 
 type JsonRecord = Record<string, unknown>;
 

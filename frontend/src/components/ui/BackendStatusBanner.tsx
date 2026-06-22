@@ -2,8 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { AlertTriangle, RefreshCw } from "lucide-react";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+import { API_URL, isLocalApiUrl } from "@/lib/apiUrl";
 
 type HealthStatus = "healthy" | "degraded" | "offline" | "checking";
 
@@ -14,7 +13,15 @@ export default function BackendStatusBanner() {
   const check = useCallback(async () => {
     setStatus("checking");
     try {
-      const res = await fetch(`${API_URL}/health`, { cache: "no-store" });
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), 90_000);
+
+      const res = await fetch(`${API_URL}/health`, {
+        cache: "no-store",
+        signal: controller.signal,
+      });
+      window.clearTimeout(timeoutId);
+
       if (!res.ok) {
         setStatus("offline");
         setDetail("API returned an error. Restart the backend server.");
@@ -34,21 +41,28 @@ export default function BackendStatusBanner() {
         setStatus("degraded");
         setDetail("API is running but not fully healthy. Some pages may fail to load.");
       }
-    } catch {
+    } catch (error) {
+      const aborted = error instanceof DOMException && error.name === "AbortError";
       setStatus("offline");
       setDetail(
-        "Cannot reach the API. Run scripts/start_dev.ps1 or start the backend on port 8000.",
+        aborted
+          ? "API is taking too long to respond. If you use Render free tier, wait a minute and try again."
+          : "Cannot reach the API. Run scripts/start_dev.ps1 or start the backend on port 8000.",
       );
     }
   }, []);
 
   useEffect(() => {
+    if (!isLocalApiUrl()) return;
+
     void check();
-    const id = window.setInterval(() => void check(), 30000);
+    const id = window.setInterval(() => void check(), 30_000);
     return () => window.clearInterval(id);
   }, [check]);
 
-  if (status === "healthy" || status === "checking") return null;
+  if (!isLocalApiUrl() || status === "healthy" || status === "checking") {
+    return null;
+  }
 
   return (
     <div
