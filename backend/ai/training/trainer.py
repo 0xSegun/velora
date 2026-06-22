@@ -292,6 +292,11 @@ class Trainer:
         torch.save(state, latest_path)
 
         if is_best:
+            state["history"] = {
+                "train_loss": list(self.history["train_loss"]),
+                "val_loss": list(self.history["val_loss"]),
+                "lr": list(self.history["lr"]),
+            }
             best_path = ckpt_dir / "best_model.pt"
             torch.save(state, best_path)
             logger.info("  ✓ New best model saved (val_loss=%.6f)", val_loss)

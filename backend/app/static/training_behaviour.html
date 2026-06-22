@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Velora — Training Behaviour</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #0b0f17;
+      --panel: #121a27;
+      --panel-border: #1e2a3d;
+      --text: #e8edf5;
+      --muted: #8b9bb4;
+      --accent: #5b8def;
+      --accent-2: #34d399;
+      --warn: #f59e0b;
+      --danger: #f87171;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: radial-gradient(ellipse at top, #152238 0%, var(--bg) 55%);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+    .wrap { max-width: 1280px; margin: 0 auto; padding: 2rem 1.25rem 3rem; }
+    header {
+      display: flex; flex-wrap: wrap; align-items: center;
+      justify-content: space-between; gap: 1rem; margin-bottom: 2rem;
+    }
+    h1 { font-size: 1.75rem; font-weight: 700; letter-spacing: -0.02em; }
+    .subtitle { color: var(--muted); font-size: 0.95rem; margin-top: 0.25rem; }
+    .controls { display: flex; gap: 0.75rem; align-items: center; }
+    select, button {
+      background: var(--panel); border: 1px solid var(--panel-border);
+      color: var(--text); border-radius: 8px; padding: 0.5rem 0.85rem;
+      font-size: 0.9rem;
+    }
+    button { cursor: pointer; background: #1a2740; }
+    button:hover { border-color: var(--accent); }
+    .grid { display: grid; gap: 1.25rem; }
+    .grid-2 { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+    .card {
+      background: var(--panel); border: 1px solid var(--panel-border);
+      border-radius: 14px; padding: 1.25rem; box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+    }
+    .card h2 {
+      font-size: 1rem; font-weight: 600; margin-bottom: 0.35rem;
+    }
+    .card p.desc { color: var(--muted); font-size: 0.82rem; margin-bottom: 1rem; }
+    .chart-box { position: relative; height: 280px; }
+    .chart-box.tall { height: 320px; }
+    .metrics {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 0.75rem; margin-bottom: 1.25rem;
+    }
+    .metric {
+      background: #0f1623; border: 1px solid var(--panel-border);
+      border-radius: 10px; padding: 0.85rem 1rem;
+    }
+    .metric .label { color: var(--muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; }
+    .metric .value { font-size: 1.35rem; font-weight: 700; margin-top: 0.2rem; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    th, td { text-align: left; padding: 0.55rem 0.4rem; border-bottom: 1px solid var(--panel-border); }
+    th { color: var(--muted); font-weight: 500; font-size: 0.78rem; text-transform: uppercase; }
+    .badge {
+      display: inline-block; font-size: 0.72rem; padding: 0.15rem 0.45rem;
+      border-radius: 999px; background: #1e3a5f; color: #93c5fd;
+    }
+    .loading, .error {
+      text-align: center; padding: 3rem 1rem; color: var(--muted);
+    }
+    .error { color: var(--danger); }
+    footer { margin-top: 2rem; text-align: center; color: var(--muted); font-size: 0.8rem; }
+    @media (max-width: 640px) {
+      .chart-box, .chart-box.tall { height: 240px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div>
+        <h1>Training Behaviour</h1>
+        <p class="subtitle">TS-Transformer training dynamics and backtest evaluation</p>
+      </div>
+      <div class="controls">
+        <label for="country">Country</label>
+        <select id="country">
+          <option value="NG">Nigeria</option>
+          <option value="US">United States</option>
+          <option value="GB">United Kingdom</option>
+          <option value="GH">Ghana</option>
+          <option value="ZA">South Africa</option>
+        </select>
+        <button id="refresh" type="button">Refresh</button>
+      </div>
+    </header>
+
+    <div id="status" class="loading">Loading training behaviour data…</div>
+    <div id="dashboard" class="grid" style="display:none;"></div>
+
+    <footer>Velora AI Inflation Platform · <a href="/docs" style="color:var(--accent)">API Docs</a></footer>
+  </div>
+
+  <script>
+    const charts = {};
+    const palette = {
+      train: "#5b8def",
+      val: "#f59e0b",
+      actual: "#34d399",
+      predicted: "#a78bfa",
+      mae: "#60a5fa",
+      rmse: "#f472b6",
+    };
+
+    function destroyCharts() {
+      Object.values(charts).forEach((c) => c.destroy());
+      Object.keys(charts).forEach((k) => delete charts[k]);
+    }
+
+    function chartDefaults() {
+      Chart.defaults.color = "#8b9bb4";
+      Chart.defaults.borderColor = "#1e2a3d";
+      Chart.defaults.font.family = "'Segoe UI', system-ui, sans-serif";
+    }
+
+    function renderDashboard(data) {
+      const el = document.getElementById("dashboard");
+      const status = document.getElementById("status");
+      status.style.display = "none";
+      el.style.display = "grid";
+
+      const overall = data.overall_backtest.metrics;
+      const lossSource = data.loss_curves.source;
+
+      el.innerHTML = `
+        <div class="metrics">
+          ${data.overall_backtest.summary_cards.map((c) => `
+            <div class="metric">
+              <div class="label">${c.label}</div>
+              <div class="value">${c.value}</div>
+            </div>
+          `).join("")}
+        </div>
+
+        <div class="grid grid-2">
+          <div class="card">
+            <h2>Training Loss Curve</h2>
+            <p class="desc">Epoch-wise training loss · source: ${lossSource}</p>
+            <div class="chart-box"><canvas id="trainLossChart"></canvas></div>
+          </div>
+          <div class="card">
+            <h2>Validation Loss Curve</h2>
+            <p class="desc">Best epoch ${data.loss_curves.best_epoch} · val loss ${data.loss_curves.best_validation_loss}</p>
+            <div class="chart-box"><canvas id="valLossChart"></canvas></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Actual vs Predicted Inflation</h2>
+          <p class="desc">${data.actual_vs_predicted.country_name} (${data.actual_vs_predicted.country_code}) held-out test sequences</p>
+          <div class="chart-box tall"><canvas id="actualPredChart"></canvas></div>
+        </div>
+
+        <div class="card">
+          <h2>Multi-Horizon Forecast Performance</h2>
+          <p class="desc">MAE and RMSE by forecast horizon (H1–H${data.multi_horizon.horizons.length})</p>
+          <div class="chart-box"><canvas id="horizonChart"></canvas></div>
+        </div>
+
+        <div class="card">
+          <h2>Overall Model Performance on Backtest Records</h2>
+          <p class="desc">${data.overall_backtest.total_records} records across ${data.overall_backtest.countries_evaluated} countries · ${data.overall_backtest.model_version}</p>
+          <div class="chart-box"><canvas id="overallChart"></canvas></div>
+        </div>
+
+        <div class="card">
+          <h2>Country-Level Backtest Results</h2>
+          <p class="desc">Walk-forward evaluation per country</p>
+          <table>
+            <thead>
+              <tr>
+                <th>Country</th><th>Records</th><th>Accuracy</th><th>MAPE</th><th>RMSE</th><th>MAE</th><th>R²</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${data.country_backtest.map((r) => `
+                <tr>
+                  <td>${r.country_name} <span class="badge">${r.country_code}</span></td>
+                  <td>${r.records}</td>
+                  <td>${r.accuracy_pct}%</td>
+                  <td>${r.mape}%</td>
+                  <td>${r.rmse}</td>
+                  <td>${r.mae}</td>
+                  <td>${r.r2_score}</td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+          <div class="chart-box" style="margin-top:1rem;"><canvas id="countryChart"></canvas></div>
+        </div>
+      `;
+
+      chartDefaults();
+      const epochs = data.loss_curves.epochs;
+
+      charts.train = new Chart(document.getElementById("trainLossChart"), {
+        type: "line",
+        data: {
+          labels: epochs,
+          datasets: [{
+            label: "Training Loss",
+            data: data.loss_curves.training_loss,
+            borderColor: palette.train,
+            backgroundColor: "rgba(91,141,239,0.12)",
+            fill: true,
+            tension: 0.3,
+            pointRadius: 0,
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: { title: { display: true, text: "Epoch" } },
+            y: { title: { display: true, text: "Loss" } },
+          },
+        },
+      });
+
+      charts.val = new Chart(document.getElementById("valLossChart"), {
+        type: "line",
+        data: {
+          labels: epochs,
+          datasets: [{
+            label: "Validation Loss",
+            data: data.loss_curves.validation_loss,
+            borderColor: palette.val,
+            backgroundColor: "rgba(245,158,11,0.12)",
+            fill: true,
+            tension: 0.3,
+            pointRadius: 0,
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: { title: { display: true, text: "Epoch" } },
+            y: { title: { display: true, text: "Loss" } },
+          },
+        },
+      });
+
+      const avp = data.actual_vs_predicted.points;
+      charts.avp = new Chart(document.getElementById("actualPredChart"), {
+        type: "line",
+        data: {
+          labels: avp.map((p) => p.index),
+          datasets: [
+            {
+              label: "Actual Inflation %",
+              data: avp.map((p) => p.actual),
+              borderColor: palette.actual,
+              tension: 0.25,
+              pointRadius: 2,
+            },
+            {
+              label: "Predicted Inflation %",
+              data: avp.map((p) => p.predicted),
+              borderColor: palette.predicted,
+              borderDash: [6, 4],
+              tension: 0.25,
+              pointRadius: 2,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: { title: { display: true, text: "Test sample" } },
+            y: { title: { display: true, text: "Inflation rate (%)" } },
+          },
+        },
+      });
+
+      const horizons = data.multi_horizon.horizons;
+      charts.horizon = new Chart(document.getElementById("horizonChart"), {
+        type: "bar",
+        data: {
+          labels: horizons.map((h) => h.label),
+          datasets: [
+            {
+              label: "MAE",
+              data: horizons.map((h) => h.mae),
+              backgroundColor: palette.mae,
+            },
+            {
+              label: "RMSE",
+              data: horizons.map((h) => h.rmse),
+              backgroundColor: palette.rmse,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: { y: { beginAtZero: true } },
+        },
+      });
+
+      charts.overall = new Chart(document.getElementById("overallChart"), {
+        type: "bar",
+        data: {
+          labels: ["Accuracy %", "MAPE %", "RMSE", "MAE", "R²"],
+          datasets: [{
+            label: "Backtest aggregate",
+            data: [
+              overall.accuracy_pct,
+              overall.mape,
+              overall.rmse,
+              overall.mae,
+              overall.r2_score,
+            ],
+            backgroundColor: ["#34d399", "#f59e0b", "#60a5fa", "#a78bfa", "#5b8def"],
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: { y: { beginAtZero: true } },
+        },
+      });
+
+      const countries = data.country_backtest;
+      charts.country = new Chart(document.getElementById("countryChart"), {
+        type: "bar",
+        data: {
+          labels: countries.map((c) => c.country_code),
+          datasets: [
+            {
+              label: "Accuracy %",
+              data: countries.map((c) => c.accuracy_pct),
+              backgroundColor: "#34d399",
+            },
+            {
+              label: "MAPE %",
+              data: countries.map((c) => c.mape),
+              backgroundColor: "#f59e0b",
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: { y: { beginAtZero: true } },
+        },
+      });
+    }
+
+    async function loadData() {
+      const country = document.getElementById("country").value;
+      const status = document.getElementById("status");
+      status.style.display = "block";
+      status.className = "loading";
+      status.textContent = "Loading training behaviour data…";
+      document.getElementById("dashboard").style.display = "none";
+      destroyCharts();
+
+      try {
+        const res = await fetch(`/api/training-behaviour?country_code=${country}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        renderDashboard(data);
+      } catch (err) {
+        status.className = "error";
+        status.textContent = `Failed to load data: ${err.message}`;
+      }
+    }
+
+    document.getElementById("refresh").addEventListener("click", loadData);
+    document.getElementById("country").addEventListener("change", loadData);
+    loadData();
+  </script>
+</body>
+</html>

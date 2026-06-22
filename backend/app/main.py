@@ -59,6 +59,7 @@ from app.routers import (
     search,
     system,
     training,
+    training_behaviour,
     users,
 )
 from app.services.exchange_rate_scheduler import (
@@ -185,6 +186,7 @@ app.include_router(reports.router)
 app.include_router(search.router)
 app.include_router(datasets.router)
 app.include_router(training.router)
+app.include_router(training_behaviour.router)
 app.include_router(admin.router)
 app.include_router(public.router)
 app.include_router(analytics.router)
@@ -230,4 +232,5 @@ async def root():
         "status": "operational",
         "docs": "/docs",
         "health": "/health",
+        "training_behaviour": "/training-behaviour",
     }

@@ -199,6 +199,7 @@ async def _run_training(job_id: uuid.UUID, dataset_id: uuid.UUID | None) -> None
             "r2": result["r2"],
             "val_loss": result["best_val_loss"],
             "best_epoch": result["best_epoch"],
+            "history": result.get("history"),
         }
         await db.commit()
 

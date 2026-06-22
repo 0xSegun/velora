@@ -275,6 +275,13 @@ def run_training(
         "history": history,
     }
 
+    try:
+        from app.services.training_behaviour_service import save_training_history
+
+        save_training_history(history)
+    except Exception as exc:
+        logger.warning("Could not persist training history: %s", exc)
+
     logger.info(
         "Training complete — accuracy=%.1f%% MAPE=%.2f%% RMSE=%.3f (%.1fs)",
         accuracy_pct,
