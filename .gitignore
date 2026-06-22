@@ -33,6 +33,9 @@ dist/
 *.ckpt
 *.onnx
 *.pkl
+!backend/models/feature_scaler.pkl
+!backend/models/target_scaler.pkl
+!backend/models/scaler.pkl
 !backend/ai/model/*.py
 
 # Archives & large local bundles (restore via Docker / npm install)
