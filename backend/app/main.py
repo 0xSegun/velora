@@ -4,6 +4,7 @@ Velora — Inflation Prediction Platform API.
 Main FastAPI application with CORS, rate limiting, routers, and lifecycle events.
 """
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -77,11 +78,11 @@ if not settings.DEBUG:
     prune_old_archives("logs/archive", keep_days=14)
 logger = logging.getLogger(__name__)
 
+_bootstrap_task: asyncio.Task | None = None
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Startup / shutdown lifecycle."""
-    logger.info("Starting %s (%s)", settings.APP_NAME, settings.APP_ENV)
+
+async def _bootstrap_and_start_schedulers() -> None:
+    """Run migrations, seed data, and start background schedulers."""
     async with async_session_factory() as db:
         await bootstrap_database(db)
     logger.info("Database bootstrap complete")
@@ -92,6 +93,18 @@ async def lifespan(app: FastAPI):
     start_world_bank_scheduler()
     start_trading_economics_scheduler()
     start_wikipedia_scheduler()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Startup / shutdown lifecycle."""
+    global _bootstrap_task
+    logger.info("Starting %s (%s)", settings.APP_NAME, settings.APP_ENV)
+    if settings.is_production:
+        # Respond to Render health checks immediately; bootstrap runs in background.
+        _bootstrap_task = asyncio.create_task(_bootstrap_and_start_schedulers())
+    else:
+        await _bootstrap_and_start_schedulers()
     yield
     logger.info("Shutting down %s", settings.APP_NAME)
     await stop_wikipedia_scheduler()
